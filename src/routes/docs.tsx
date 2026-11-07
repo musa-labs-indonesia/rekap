@@ -24,11 +24,11 @@ import { Card, CardContent } from "@/components/ui/card";
 export const Route = createFileRoute("/docs")({
   head: () => ({
     meta: [
-      { title: "Panduan Rekap — setup dan penggunaan" },
+      { title: "Panduan Rekap untuk anggota chat dan operator" },
       {
         name: "description",
         content:
-          "Panduan publik Rekap: siapkan Rekap, hubungkan bot Telegram, catat pengeluaran, dan buat laporan.",
+          "Panduan untuk anggota chat dan operator Rekap. Catat pengeluaran lewat Telegram atau siapkan aplikasi di Cloudflare.",
       },
     ],
   }),
@@ -36,16 +36,47 @@ export const Route = createFileRoute("/docs")({
 });
 
 const sections = [
-  { id: "ringkasan", label: "Ringkasan", icon: BookOpen },
-  { id: "mulai", label: "Mulai cepat", icon: Rocket },
-  { id: "telegram", label: "Perintah Telegram", icon: MessageCircle },
-  { id: "website", label: "Website", icon: Monitor },
-  { id: "setup", label: "Setup", icon: Settings },
-  { id: "hubungkan-telegram", label: "Hubungkan Telegram", icon: Send },
-  { id: "lokal", label: "Pengembangan lokal", icon: Terminal },
-  { id: "pemulihan", label: "Pemulihan kata sandi", icon: KeyRound },
-  { id: "keamanan", label: "Keamanan dan batasan", icon: ShieldCheck },
+  { id: "mulai", label: "Mulai cepat", audience: "Anggota chat", icon: Rocket },
+  {
+    id: "telegram",
+    label: "Perintah Telegram",
+    audience: "Anggota chat",
+    icon: MessageCircle,
+  },
+  {
+    id: "website",
+    label: "Situs web",
+    audience: "Operator",
+    icon: Monitor,
+  },
+  { id: "setup", label: "Penyiapan", audience: "Operator", icon: Settings },
+  {
+    id: "hubungkan-telegram",
+    label: "Hubungkan Telegram",
+    audience: "Operator",
+    icon: Send,
+  },
+  {
+    id: "lokal",
+    label: "Pengembangan lokal",
+    audience: "Operator",
+    icon: Terminal,
+  },
+  {
+    id: "pemulihan",
+    label: "Pemulihan kata sandi",
+    audience: "Operator",
+    icon: KeyRound,
+  },
+  {
+    id: "keamanan",
+    label: "Keamanan dan batasan",
+    audience: "Operator",
+    icon: ShieldCheck,
+  },
 ] as const;
+
+const audiences = ["Anggota chat", "Operator"] as const;
 
 const commands = [
   {
@@ -74,22 +105,22 @@ const commands = [
 const secrets = [
   [
     "APP_URL",
-    "Origin HTTPS publik, tanpa path atau garis miring di akhir.",
+    "Alamat HTTPS publik aplikasi tanpa path atau garis miring di akhir.",
   ],
   [
     "BETTER_AUTH_SECRET",
-    "Rahasia acak minimal 32 karakter. Jaga nilainya tetap sama di setiap deploy.",
+    "Rahasia acak minimal 32 karakter. Gunakan nilai yang sama pada setiap rilis.",
   ],
   [
     "OWNER_USERNAME",
-    "Nama pengguna awal: 3–30 huruf, angka, garis bawah, atau titik.",
+    "Nama pengguna awal: 3 sampai 30 karakter. Gunakan huruf Latin, angka, garis bawah, atau titik.",
   ],
-  ["OWNER_PASSWORD", "Kata sandi awal: 12–128 karakter."],
+  ["OWNER_PASSWORD", "Kata sandi awal: 12 sampai 128 karakter."],
   ["TELEGRAM_BOT_TOKEN", "Token bot dari BotFather."],
   ["TELEGRAM_BOT_USERNAME", "Nama bot tanpa tanda @."],
   [
     "TELEGRAM_WEBHOOK_SECRET",
-    "Rahasia webhook acak: 1–256 huruf, angka, garis bawah, atau tanda hubung.",
+    "Rahasia webhook acak: 1 sampai 256 karakter. Gunakan huruf, angka, garis bawah, atau tanda hubung.",
   ],
   [
     "TRUSTED_TELEGRAM_USER_ID",
@@ -124,7 +155,7 @@ const websiteFeatures = [
   },
   {
     title: "Kata sandi",
-    description: "Ubah kata sandi akun pemilik dari menu website.",
+    description: "Ubah kata sandi akun pemilik dari menu situs web.",
   },
 ];
 
@@ -197,7 +228,7 @@ function Docs() {
           <aside className="hidden min-h-0 flex-col border-r border-border bg-card px-4 py-6 lg:flex lg:overflow-hidden lg:rounded-l-2xl">
             <a
               href="/"
-              aria-label="Rekap — beranda"
+              aria-label="Halaman utama Rekap"
               className="flex items-center gap-3 px-2"
             >
               <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -216,7 +247,7 @@ function Docs() {
             </div>
             <div className="mt-6 rounded-xl border border-border bg-secondary/40 p-4">
               <p className="text-sm font-medium text-foreground">
-                Sudah punya akun?
+                Sudah memiliki akun?
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 Masuk untuk melihat catatan pengeluaran.
@@ -232,7 +263,7 @@ function Docs() {
               <div className="flex min-w-0 items-center gap-3">
                 <a
                   href="/"
-                  aria-label="Rekap — beranda"
+                  aria-label="Halaman utama Rekap"
                   className="flex items-center gap-2 lg:hidden"
                 >
                   <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -321,13 +352,12 @@ function Docs() {
                         Panduan publik
                       </Badge>
                       <h1 className="mt-5 max-w-2xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-                        Cara menyiapkan dan memakai Rekap.
+                        Siapkan Rekap dan catat pengeluaran.
                       </h1>
                       <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                        Rekap mencatat pengeluaran dari grup atau chat pribadi
-                        Telegram dan menampilkan laporan di situs privat. Halaman
-                        ini menjelaskan setup untuk operator dan cara pakai untuk
-                        anggota chat.
+                        Anggota chat mencatat pengeluaran dan meminta laporan
+                        lewat Telegram. Operator menyiapkan bot dan mengelola
+                        profil. Pemilik harus masuk untuk melihat data di situs web.
                       </p>
                       <div className="mt-6 flex flex-wrap gap-2.5">
                         <Button asChild className="rounded-full">
@@ -344,7 +374,7 @@ function Docs() {
                           variant="outline"
                           className="rounded-full bg-card"
                         >
-                          <a href="#setup">Lihat setup</a>
+                          <a href="#setup">Lihat penyiapan</a>
                         </Button>
                       </div>
                     </div>
@@ -392,30 +422,26 @@ function Docs() {
               </div>
 
               <div className="mt-4 space-y-4">
-                <Section id="ringkasan" title="Ringkasan">
-                  <p>
-                    Rekap mencatat pengeluaran dari Telegram, lalu menampilkan
-                    laporan di website privat. Setiap instalasi memakai satu akun
-                    pemilik bersama. Setiap profil terhubung ke satu chat dan punya
-                    kategori serta pengeluaran sendiri. WhatsApp belum didukung.
-                  </p>
-                </Section>
-
             <Section id="mulai" title="Mulai cepat">
               <p>
-                Tiga langkah ini cukup untuk memakai Rekap dari Telegram. Operator
-                perlu menyelesaikan bagian setup terlebih dahulu.
+                Operator harus menyelesaikan penyiapan sebelum dua langkah
+                pertama. Anggota chat dapat mulai mencatat setelah bot terhubung.
               </p>
               <ol className="grid gap-4 sm:grid-cols-3">
-                <Step number="01" title="Buat profil">
-                  Masuk ke website, lalu buat profil. Isi nama dan ID chat
-                  Telegram. ID grup biasanya negatif.
+                <Step number="01" title="Operator membuat profil">
+                  Masuk ke situs web dengan akun pemilik. Buat profil, lalu isi
+                  nama dan ID chat Telegram. ID grup biasanya negatif.
                 </Step>
-                <Step number="02" title="Hubungkan bot">
-                  Nonaktifkan mode privasi grup di BotFather. Keluarkan dan
-                  masukkan lagi bot bila perlu. Atur webhook ke alamat aplikasi.
+                <Step number="02" title="Operator menghubungkan bot">
+                  Di BotFather, nonaktifkan mode privasi grup. Jika bot sudah ada
+                  di grup, keluarkan lalu tambahkan kembali. Atur webhook dengan
+                  metode <InlineCode>setWebhook</InlineCode> seperti dijelaskan di{" "}
+                  <a className="underline underline-offset-4" href="#hubungkan-telegram">
+                    Hubungkan Telegram
+                  </a>
+                  .
                 </Step>
-                <Step number="03" title="Catat pengeluaran">
+                <Step number="03" title="Anggota chat mencatat pengeluaran">
                   Kirim <InlineCode>catat, 20.000, bubur ayam, makan</InlineCode>{" "}
                   di chat yang terhubung.
                 </Step>
@@ -491,7 +517,7 @@ function Docs() {
                   Rp9.000.000.000.000.000.
                 </ListItem>
                 <ListItem>
-                  Profil baru otomatis punya kategori{" "}
+                  Profil baru memiliki kategori{" "}
                   <InlineCode>makan</InlineCode>,{" "}
                   <InlineCode>transport</InlineCode>,{" "}
                   <InlineCode>belanja</InlineCode>, dan{" "}
@@ -507,16 +533,16 @@ function Docs() {
               </ul>
               <Callout title="Edit dan hapus pesan">
                 Edit atau hapus pesan Telegram tidak mengubah pengeluaran yang
-                sudah tersimpan. Gunakan website untuk mengubah atau menghapus
+                sudah tersimpan. Gunakan situs web untuk mengubah atau menghapus
                 transaksi.
               </Callout>
             </Section>
 
-            <Section id="website" title="Website">
+            <Section id="website" title="Situs web">
               <p>
-                Website memakai satu akun pemilik bersama. Masuk dengan nama
-                pengguna dan kata sandi yang dibuat saat setup. Tidak ada
-                pendaftaran akun baru.
+                Setiap instalasi memiliki satu akun pemilik. Masuk ke situs web
+                dengan nama pengguna dan kata sandi akun tersebut. Pendaftaran
+                mandiri tidak tersedia.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {websiteFeatures.map((feature) => (
@@ -539,15 +565,15 @@ function Docs() {
               </Callout>
             </Section>
 
-            <Section id="setup" title="Setup">
+            <Section id="setup" title="Penyiapan">
               <p>
-                Bagian ini untuk operator yang memasang Rekap di Cloudflare.
-                Deployment dan migrasi memengaruhi infrastruktur bersama. Tinjau
-                perintah dan ID database sebelum menjalankannya.
+                Gunakan langkah ini untuk memasang Rekap di Cloudflare. Perintah
+                migrasi mengubah database jarak jauh. Periksa ID database sebelum
+                menjalankannya.
               </p>
 
               <h3 className="text-lg font-semibold text-foreground">
-                Yang perlu disiapkan
+                Siapkan kebutuhan berikut
               </h3>
               <ul className="grid gap-2 sm:grid-cols-2">
                 <CheckItem>Node.js 22.18 atau lebih baru</CheckItem>
@@ -557,7 +583,7 @@ function Docs() {
               </ul>
 
               <h3 className="text-lg font-semibold text-foreground">
-                1. Pasang dan masuk
+                1. Pasang dependensi dan masuk ke Cloudflare
               </h3>
               <CodeBlock>{`vp install
 vp exec cf auth login`}</CodeBlock>
@@ -569,23 +595,36 @@ vp exec cf auth login`}</CodeBlock>
                 Buat database, lalu simpan UUID hasilnya di{" "}
                 <InlineCode>D1_DATABASE_ID</InlineCode>. UUID di{" "}
                 <InlineCode>cloudflare.config.ts</InlineCode> hanya placeholder.
-                Jangan deploy dengan UUID itu.
+                Jangan terapkan aplikasi dengan UUID itu.
               </p>
               <CodeBlock>{`vp exec cf d1 create --name rekap
 export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
               <p>
                 Terapkan migrasi ke database baru. Perintah ini menulis ke
-                database remote, jadi periksa ID terlebih dahulu.
+                database jarak jauh. Periksa ID sebelum menjalankan perintah.
               </p>
               <CodeBlock>{`vp exec cf d1 migrations apply "$D1_DATABASE_ID" --dir migrations`}</CodeBlock>
 
               <h3 className="text-lg font-semibold text-foreground">
-                3. Atur rahasia Worker
+                3. Siapkan rahasia Worker
               </h3>
               <p>
-                Gunakan berkas JSON rahasia privat dan teruskan ke perintah
-                deploy, atau gunakan alur manajemen rahasia Cloudflare. Jangan
-                commit berkas rahasia.
+                Simpan nilai ini dalam berkas JSON di luar repositori, atau
+                gunakan pengelolaan rahasia Cloudflare. Berkas JSON berisi objek
+                nama variabel dan nilai string, seperti contoh berikut.
+              </p>
+              <CodeBlock>{`{
+  "APP_URL": "https://YOUR-ORIGIN",
+  "BETTER_AUTH_SECRET": "<rahasia-acak-minimal-32-karakter>",
+  "OWNER_USERNAME": "<nama-pemilik>",
+  "OWNER_PASSWORD": "<kata-sandi-awal>",
+  "TELEGRAM_BOT_TOKEN": "<token-dari-BotFather>",
+  "TELEGRAM_BOT_USERNAME": "<nama-bot-tanpa-at>",
+  "TELEGRAM_WEBHOOK_SECRET": "<rahasia-webhook>",
+  "TRUSTED_TELEGRAM_USER_ID": "<id-pengguna-numerik>"
+}`}</CodeBlock>
+              <p>
+                Ganti setiap nilai contoh. Jangan masukkan berkas ini ke Git.
               </p>
               <div className="space-y-3 sm:hidden">
                 {secrets.map(([name, description]) => (
@@ -637,43 +676,48 @@ export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
               </div>
 
               <h3 className="text-lg font-semibold text-foreground">
-                4. Deploy dan buat akun pemilik
+                4. Terapkan aplikasi
               </h3>
-              <CodeBlock>{`vp exec cf deploy --secrets-file <path>`}</CodeBlock>
+              <CodeBlock>{`vp exec cf deploy --secrets-file /path/to/secrets.json`}</CodeBlock>
               <p>
-                Akun pemilik dibuat pada permintaan autentikasi pertama.
-                Perubahan pada <InlineCode>OWNER_USERNAME</InlineCode> atau{" "}
-                <InlineCode>OWNER_PASSWORD</InlineCode> setelah itu tidak
-                mengatur ulang akun. Ubah kata sandi di website. Jaga{" "}
-                <InlineCode>BETTER_AUTH_SECRET</InlineCode> tetap sama di setiap
-                deploy. Deploy dengan <InlineCode>D1_DATABASE_ID</InlineCode> yang
-                sama dan periksa URL sebelum menghubungkan Telegram.
+                Ganti <InlineCode>/path/to/secrets.json</InlineCode> dengan lokasi
+                berkas JSON. Permintaan autentikasi
+                pertama membuat akun pemilik. Setelah itu, perubahan pada{" "}
+                <InlineCode>OWNER_USERNAME</InlineCode> atau{" "}
+                <InlineCode>OWNER_PASSWORD</InlineCode> tidak mengubah akun. Ubah
+                kata sandi di situs web. Gunakan nilai{" "}
+                <InlineCode>BETTER_AUTH_SECRET</InlineCode> yang sama pada setiap
+                penerapan. Gunakan{" "}
+                <InlineCode>D1_DATABASE_ID</InlineCode> yang sama, lalu periksa URL
+                sebelum menghubungkan Telegram.
               </p>
             </Section>
 
             <Section id="hubungkan-telegram" title="Hubungkan Telegram">
               <ol className="space-y-4">
                 <NumberedItem number="1">
-                  Di BotFather, nonaktifkan mode privasi grup untuk bot. Jika bot
-                  sudah ada di grup, keluarkan lalu masukkan lagi.
+                  Di BotFather, nonaktifkan mode privasi grup. Jika bot sudah ada
+                  di grup, keluarkan bot lalu tambahkan kembali.
                 </NumberedItem>
                 <NumberedItem number="2">
-                  Atur webhook Telegram ke{" "}
-                  <InlineCode>https://YOUR-ORIGIN/api/telegram</InlineCode>.
-                  Gunakan <InlineCode>secret_token</InlineCode> yang sama dengan{" "}
+                  Panggil metode <InlineCode>setWebhook</InlineCode> di Telegram
+                  Bot API. Atur <InlineCode>url</InlineCode> ke{" "}
+                  <InlineCode>https://YOUR-ORIGIN/api/telegram</InlineCode> dan{" "}
+                  <InlineCode>secret_token</InlineCode> ke nilai{" "}
                   <InlineCode>TELEGRAM_WEBHOOK_SECRET</InlineCode>. Telegram harus
-                  dapat menjangkau URL melalui HTTPS.
+                  dapat mengakses URL melalui HTTPS.
                 </NumberedItem>
                 <NumberedItem number="3">
                   Dapatkan ID chat numerik dari klien Telegram tepercaya atau alat
                   diagnostik administrator. ID grup biasanya negatif.
                 </NumberedItem>
                 <NumberedItem number="4">
-                  Buat profil di website dengan ID chat itu.
+                  Masuk ke situs web sebagai pemilik, lalu buat profil dengan ID
+                  chat tersebut.
                 </NumberedItem>
               </ol>
               <Callout title="Rahasia">
-                Perlakukan token bot dan secret webhook sebagai kata sandi.
+                Perlakukan token bot dan rahasia webhook seperti kata sandi.
                 Jangan masukkan ke riwayat shell, log, atau tangkapan layar.
               </Callout>
             </Section>
@@ -688,20 +732,21 @@ export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
               <CodeBlock>{`vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations
 vp exec cf dev`}</CodeBlock>
               <p>
-                Telegram tidak dapat mengirim webhook ke localhost tanpa tunnel
+                Telegram tidak dapat mengirim webhook langsung ke{" "}
+                <InlineCode>localhost</InlineCode>. Gunakan layanan penerusan
                 HTTPS publik. Jangan gunakan rahasia produksi atau data
                 pengeluaran nyata di pengembangan lokal.
               </p>
               <h3 className="text-lg font-semibold text-foreground">
-                Pemeriksaan saat ini
+                Jalankan pemeriksaan
               </h3>
               <CodeBlock>{`vp exec tsc --noEmit
 vp test run src/server/auth.test.ts --config src/server/auth/test.config.ts
 vp test run --root src/server telegram.test.ts
 vp exec cf build`}</CodeBlock>
               <p>
-                Tes memakai adapter SQLite lokal, bukan D1 yang sudah di-deploy
-                atau API Telegram langsung.
+                Tes memakai adapter SQLite lokal, bukan database D1 di Cloudflare
+                atau Telegram Bot API langsung.
               </p>
             </Section>
 
@@ -719,12 +764,12 @@ vp exec cf build`}</CodeBlock>
 export APP_URL="https://YOUR-ORIGIN"
 node scripts/recover.mjs`}</CodeBlock>
               <p>
-                Perintah ini menulis ke database remote dan membatalkan tautan
+                Perintah ini menulis ke database jarak jauh dan membatalkan tautan
                 pemulihan yang ada. Perintah mencetak tautan sensitif; jangan
                 simpan atau bagikan keluaran terminal. Buka tautan dalam 10 menit
                 dan atur kata sandi baru. Untuk database lokal yang dapat dibuang,
                 tambahkan <InlineCode>--local</InlineCode> dan gunakan ID database
-                serta origin lokal.
+                serta alamat dasar lokal.
               </p>
             </Section>
 
@@ -741,24 +786,25 @@ node scripts/recover.mjs`}</CodeBlock>
                   terbuka untuk publik.
                 </ListItem>
                 <ListItem>
-                  Jangan aktifkan Worker traces tanpa memastikan URL Telegram
-                  keluar, yang berisi token bot, diredaksi. Nonaktifkan log isi
-                  permintaan dan lindungi log serta cadangan D1.
+                  Sebelum mengaktifkan pelacakan Worker, pastikan catatan
+                  pelacakan menyamarkan token bot pada URL permintaan Telegram
+                  keluar. Nonaktifkan log isi permintaan dan batasi akses ke log
+                  serta cadangan D1.
                 </ListItem>
                 <ListItem>
-                  Satu instalasi memakai satu akun pemilik bersama. Setiap profil
+                  Setiap instalasi memiliki satu akun pemilik. Setiap profil
                   terhubung ke satu chat.
                 </ListItem>
                 <ListItem>
                   WhatsApp belum didukung. Batas dan harga Cloudflare dapat
-                  berubah; periksa kuota Workers dan D1 sebelum deploy.
+                  berubah. Periksa kuota Workers dan D1 sebelum menerapkan aplikasi.
                 </ListItem>
               </ul>
             </Section>
               </div>
 
               <footer className="mt-8 flex flex-col gap-3 border-t border-border pt-5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <p>Rekap — catatan pengeluaran dari Telegram.</p>
+                <p>Rekap mencatat pengeluaran dari Telegram.</p>
                 <div className="flex gap-4">
                   <a href="#isi" className="hover:text-foreground">
                     Kembali ke atas
@@ -786,34 +832,45 @@ function DocsNav({
 }) {
   return (
     <nav aria-label="Daftar isi" className={className}>
-      <ul className="space-y-1">
-        {sections.map((section) => {
-          const Icon = section.icon;
-          const isActive = section.id === active;
-          return (
-            <li key={section.id}>
-              <a
-                href={`#${section.id}`}
-                aria-current={isActive ? "location" : undefined}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
-                  isActive
-                    ? "bg-secondary font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                }`}
-              >
-                <Icon
-                  className={`size-4 shrink-0 ${
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground group-hover:text-foreground"
-                  }`}
-                  aria-hidden="true"
-                />
-                <span>{section.label}</span>
-              </a>
-            </li>
-          );
-        })}
+      <ul className="space-y-4">
+        {audiences.map((audience) => (
+          <li key={audience}>
+            <p className="px-3 text-xs font-semibold text-muted-foreground">
+              {audience}
+            </p>
+            <ul className="mt-1 space-y-1">
+              {sections
+                .filter((section) => section.audience === audience)
+                .map((section) => {
+                  const Icon = section.icon;
+                  const isActive = section.id === active;
+                  return (
+                    <li key={section.id}>
+                      <a
+                        href={`#${section.id}`}
+                        aria-current={isActive ? "location" : undefined}
+                        className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+                          isActive
+                            ? "bg-secondary font-medium text-foreground"
+                            : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                        }`}
+                      >
+                        <Icon
+                          className={`size-4 shrink-0 ${
+                            isActive
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover:text-foreground"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <span>{section.label}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+            </ul>
+          </li>
+        ))}
       </ul>
     </nav>
   );
