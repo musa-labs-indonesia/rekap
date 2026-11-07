@@ -1,6 +1,7 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 
 import appCss from '../styles.css?url'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -13,13 +14,23 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Rekap — catatan pengeluaran',
+        title: 'Rekap | Catatan pengeluaran',
+      },
+      {
+        name: 'description',
+        content:
+          'Rekap mencatat pengeluaran dari Telegram dan menampilkannya sebagai laporan pribadi.',
       },
     ],
     links: [
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'icon',
+        href: '/favicon.svg',
+        type: 'image/svg+xml',
       },
     ],
   }),
@@ -33,7 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
 
         <Scripts />
       </body>
