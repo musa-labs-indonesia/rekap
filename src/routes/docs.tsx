@@ -36,47 +36,39 @@ export const Route = createFileRoute("/docs")({
 });
 
 const sections = [
-  { id: "mulai", label: "Mulai cepat", audience: "Anggota chat", icon: Rocket },
+  { id: "mulai", label: "Mulai cepat", icon: Rocket },
   {
     id: "telegram",
     label: "Perintah Telegram",
-    audience: "Anggota chat",
     icon: MessageCircle,
   },
   {
     id: "website",
     label: "Situs web",
-    audience: "Operator",
     icon: Monitor,
   },
-  { id: "setup", label: "Penyiapan", audience: "Operator", icon: Settings },
+  { id: "setup", label: "Penyiapan", icon: Settings },
   {
     id: "hubungkan-telegram",
     label: "Hubungkan Telegram",
-    audience: "Operator",
     icon: Send,
   },
   {
     id: "lokal",
     label: "Pengembangan lokal",
-    audience: "Operator",
     icon: Terminal,
   },
   {
     id: "pemulihan",
     label: "Pemulihan kata sandi",
-    audience: "Operator",
     icon: KeyRound,
   },
   {
     id: "keamanan",
     label: "Keamanan dan batasan",
-    audience: "Operator",
     icon: ShieldCheck,
   },
 ] as const;
-
-const audiences = ["Anggota chat", "Operator"] as const;
 
 const commands = [
   {
@@ -832,45 +824,34 @@ function DocsNav({
 }) {
   return (
     <nav aria-label="Daftar isi" className={className}>
-      <ul className="space-y-4">
-        {audiences.map((audience) => (
-          <li key={audience}>
-            <p className="px-3 text-xs font-semibold text-muted-foreground">
-              {audience}
-            </p>
-            <ul className="mt-1 space-y-1">
-              {sections
-                .filter((section) => section.audience === audience)
-                .map((section) => {
-                  const Icon = section.icon;
-                  const isActive = section.id === active;
-                  return (
-                    <li key={section.id}>
-                      <a
-                        href={`#${section.id}`}
-                        aria-current={isActive ? "location" : undefined}
-                        className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
-                          isActive
-                            ? "bg-secondary font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                        }`}
-                      >
-                        <Icon
-                          className={`size-4 shrink-0 ${
-                            isActive
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover:text-foreground"
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <span>{section.label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-            </ul>
-          </li>
-        ))}
+      <ul className="flex flex-col gap-1">
+        {sections.map((section) => {
+          const Icon = section.icon;
+          const isActive = section.id === active;
+          return (
+            <li key={section.id}>
+              <a
+                href={`#${section.id}`}
+                aria-current={isActive ? "location" : undefined}
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+                  isActive
+                    ? "bg-secondary font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                }`}
+              >
+                <Icon
+                  className={`size-4 shrink-0 ${
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  }`}
+                  aria-hidden="true"
+                />
+                <span>{section.label}</span>
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

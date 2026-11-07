@@ -184,11 +184,11 @@ export function TransactionsPage() {
         <Card className="[--card-spacing:var(--space-4)]">
           <CardContent>
             <div
-              className="flex flex-col gap-3 xl:flex-row xl:items-end"
+              className="flex flex-wrap items-end gap-3"
               role="group"
               aria-label="Filter transaksi"
             >
-              <Field className="w-full xl:w-[170px]">
+              <Field className="min-w-0 flex-[1_1_125px] sm:flex-[0_1_170px]">
                 <FieldLabel
                   htmlFor="start"
                   className="text-xs font-medium text-muted-foreground"
@@ -203,7 +203,7 @@ export function TransactionsPage() {
                   onChange={(event) => setStart(event.target.value)}
                 />
               </Field>
-              <Field className="w-full xl:w-[170px]">
+              <Field className="min-w-0 flex-[1_1_125px] sm:flex-[0_1_170px]">
                 <FieldLabel
                   htmlFor="end"
                   className="text-xs font-medium text-muted-foreground"
@@ -218,7 +218,7 @@ export function TransactionsPage() {
                   onChange={(event) => setEnd(event.target.value)}
                 />
               </Field>
-              <Field className="w-full xl:w-[220px]">
+              <Field className="min-w-0 flex-[1_1_150px] sm:flex-[0_1_220px]">
                 <FieldLabel
                   htmlFor="category-filter"
                   className="text-xs font-medium text-muted-foreground"
@@ -245,9 +245,9 @@ export function TransactionsPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Button variant="ghost" className="w-full xl:w-auto" onClick={resetFilters}>
+              <Button variant="ghost" onClick={resetFilters}>
                 <RotateCcw />
-                Atur ulang
+                Reset
               </Button>
             </div>
           </CardContent>
