@@ -1,0 +1,18 @@
+{
+  "projectName": "rekap",
+  "mode": "file-router",
+  "bundler": "vite",
+  "typescript": true,
+  "tailwind": false,
+  "packageManager": "pnpm",
+  "git": false,
+  "install": false,
+  "intent": false,
+  "addOnOptions": {},
+  "projectPreset": "blank",
+  "routerOnly": false,
+  "includeExamples": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": []
+}
