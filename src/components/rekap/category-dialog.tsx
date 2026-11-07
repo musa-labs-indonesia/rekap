@@ -78,8 +78,8 @@ export function CategoryDialog({
           <DialogTitle>{category ? "Ubah nama kategori" : "Kategori baru"}</DialogTitle>
           <DialogDescription>
             {category
-              ? "Nama baru berlaku untuk transaksi berikutnya."
-              : "Kategori baru dapat dipilih untuk transaksi berikutnya."}
+              ? "Nama baru juga muncul pada transaksi lama."
+              : "Kategori dapat dipilih untuk transaksi baru. Nama yang pernah dihapus akan diaktifkan kembali."}
           </DialogDescription>
         </DialogHeader>
         {shownError ? (

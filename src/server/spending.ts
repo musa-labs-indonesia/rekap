@@ -90,12 +90,13 @@ export async function spending(request: Request, db: D1Database): Promise<Respon
     const name = text(body.name);
     if (!name || name.includes(",") || name.length > 100) return bad("Nama kategori tidak valid.");
     try {
-      if (action === "createCategory")
-        await db
-          .prepare("INSERT INTO categories (id, profile_id, name, name_key) VALUES (?, ?, ?, ?)")
+      if (action === "createCategory") {
+        const result = await db
+          .prepare("INSERT INTO categories (id, profile_id, name, name_key) VALUES (?, ?, ?, ?) ON CONFLICT(profile_id, name_key) DO UPDATE SET name = excluded.name, archived = 0 WHERE categories.archived = 1")
           .bind(id(), profileId, name, categoryKey(name))
           .run();
-      else
+        if (!result.meta.changes) return bad("Kategori sudah ada atau tidak dapat disimpan.");
+      } else
         await db
           .prepare("UPDATE categories SET name = ?, name_key = ? WHERE id = ? AND profile_id = ?")
           .bind(name, categoryKey(name), text(body.categoryId), profileId)
@@ -104,6 +105,18 @@ export async function spending(request: Request, db: D1Database): Promise<Respon
     } catch {
       return bad("Kategori sudah ada atau tidak dapat disimpan.");
     }
+  }
+  if (action === "deleteCategory") {
+    const categoryId = text(body.categoryId);
+    await db.batch([
+      db
+        .prepare("DELETE FROM categories WHERE id = ? AND profile_id = ? AND NOT EXISTS (SELECT 1 FROM expenses WHERE category_id = ?)")
+        .bind(categoryId, profileId, categoryId),
+      db
+        .prepare("UPDATE categories SET archived = 1 WHERE id = ? AND profile_id = ?")
+        .bind(categoryId, profileId),
+    ]);
+    return Response.json({ ok: true });
   }
   if (action === "archiveCategory") {
     await db

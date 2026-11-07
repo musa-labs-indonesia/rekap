@@ -1,8 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  CalendarDays,
   ChartPie,
   Plus,
   ReceiptText,
@@ -31,6 +30,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApp } from "./app-provider";
 import { CategoryDonut } from "./category-donut";
+import { MonthFilter } from "./month-filter";
 import { PageHeader } from "./page-header";
 import { QueryError } from "./query-error";
 import { SpendingTrendChart } from "./spending-trend-chart";
@@ -40,7 +40,7 @@ import type { CategoryTotal } from "./utils";
 import {
   buildTrend,
   initialDate,
-  monthStart,
+  monthRange,
   percentage,
   periodLabel,
   rupiah,
@@ -49,9 +49,9 @@ import { useSpendData } from "./use-spend-data";
 
 export function DashboardPage() {
   const { selectedProfile, selectedProfileId, handleUnauthorized } = useApp();
-  const start = monthStart();
-  const end = initialDate();
-  const { expenses, loading, error, reload } = useSpendData({
+  const [selectedMonth, selectMonth] = useState(() => initialDate().slice(0, 7));
+  const { start, end } = monthRange(selectedMonth);
+  const { expenses, categories, loading, error, reload } = useSpendData({
     profileId: selectedProfileId,
     start,
     end,
@@ -117,10 +117,7 @@ export function DashboardPage() {
           <p className="text-sm text-muted-foreground">
             Ringkasan {period} untuk {selectedProfile?.name ?? "profil aktif"}.
           </p>
-          <Badge variant="outline" className="gap-1.5">
-            <CalendarDays className="size-3.5" />
-            Bulan berjalan
-          </Badge>
+          <MonthFilter selectedMonth={selectedMonth} selectMonth={selectMonth} />
         </div>
 
         {error ? <QueryError message={error} onRetry={reload} /> : null}
@@ -139,8 +136,8 @@ export function DashboardPage() {
               value={rupiah(total)}
               detail={
                 expenses.length
-                  ? `${expenses.length} transaksi bulan ini`
-                  : "Belum ada transaksi bulan ini"
+                  ? `${expenses.length} transaksi pada periode ini`
+                  : "Belum ada transaksi pada periode ini"
               }
               icon={Wallet}
             />
@@ -148,7 +145,7 @@ export function DashboardPage() {
               label="Rata-rata transaksi"
               value={rupiah(average)}
               detail={
-                expenses.length ? "Dihitung dari transaksi bulan ini" : "Belum ada transaksi"
+                expenses.length ? "Dihitung dari transaksi periode ini" : "Belum ada transaksi"
               }
               icon={TrendingUp}
             />
@@ -188,7 +185,7 @@ export function DashboardPage() {
                 <CardTitle role="heading" aria-level={2}>
                   Tren pengeluaran
                 </CardTitle>
-                <CardDescription>Pengeluaran per hari pada bulan berjalan.</CardDescription>
+                <CardDescription>Pengeluaran per hari pada periode yang dipilih.</CardDescription>
                 <CardAction>
                   <Badge variant="outline" className="hidden sm:inline-flex">
                     {period}
@@ -205,9 +202,14 @@ export function DashboardPage() {
                   Rincian kategori
                 </CardTitle>
                 <CardDescription>Porsi setiap kategori dari total pengeluaran.</CardDescription>
+                <CardAction>
+                  <Badge variant="outline">
+                    {categories.filter((category) => !category.archived).length} kategori aktif
+                  </Badge>
+                </CardAction>
               </CardHeader>
               <CardContent>
-                <CategoryDonut breakdown={breakdown} total={total} />
+                <CategoryDonut breakdown={breakdown} categories={categories} total={total} />
               </CardContent>
             </Card>
           </div>
@@ -218,7 +220,7 @@ export function DashboardPage() {
             <CardTitle role="heading" aria-level={2}>
               Transaksi terbaru
             </CardTitle>
-            <CardDescription>10 transaksi terakhir pada bulan berjalan.</CardDescription>
+            <CardDescription>10 transaksi terakhir pada periode yang dipilih.</CardDescription>
             <CardAction>
               <Badge variant="secondary" className="tabular-nums">
                 {expenses.length} transaksi

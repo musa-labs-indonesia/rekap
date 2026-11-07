@@ -50,6 +50,14 @@ export const initialDate = () => dateString(new Date());
 
 export const monthStart = () => `${initialDate().slice(0, 7)}-01`;
 
+export function monthRange(month: string, today = initialDate()) {
+  const start = `${month}-01`;
+  const lastDay = new Date(`${start}T00:00:00Z`);
+  lastDay.setUTCMonth(lastDay.getUTCMonth() + 1, 0);
+  const end = lastDay.toISOString().slice(0, 10);
+  return { start, end: end > today ? today : end };
+}
+
 export const percentage = (amount: number, total: number) =>
   total > 0 ? Math.round((amount / total) * 100) : 0;
 
