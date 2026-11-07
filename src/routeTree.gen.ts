@@ -9,17 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as RecoverRouteImport } from './routes/recover'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppCategoriesRouteImport } from './routes/_app.categories'
+import { Route as AppProfilesRouteImport } from './routes/_app.profiles'
+import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
 import { Route as ApiDataRouteImport } from './routes/api/data'
 import { Route as ApiRecoverRouteImport } from './routes/api/recover'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -31,6 +34,26 @@ const RecoverRoute = RecoverRouteImport.update({
   id: '/recover',
   path: '/recover',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCategoriesRoute = AppCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProfilesRoute = AppProfilesRouteImport.update({
+  id: '/profiles',
+  path: '/profiles',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTransactionsRoute = AppTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiDataRoute = ApiDataRouteImport.update({
   id: '/api/data',
@@ -54,31 +77,41 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
+  '/categories': typeof AppCategoriesRoute
+  '/profiles': typeof AppProfilesRoute
+  '/transactions': typeof AppTransactionsRoute
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
+  '/categories': typeof AppCategoriesRoute
+  '/profiles': typeof AppProfilesRoute
+  '/transactions': typeof AppTransactionsRoute
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
+  '/_app/categories': typeof AppCategoriesRoute
+  '/_app/profiles': typeof AppProfilesRoute
+  '/_app/transactions': typeof AppTransactionsRoute
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -87,32 +120,42 @@ export interface FileRouteTypes {
     | '/'
     | '/docs'
     | '/recover'
+    | '/categories'
+    | '/profiles'
+    | '/transactions'
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/docs'
     | '/recover'
+    | '/categories'
+    | '/profiles'
+    | '/transactions'
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
+    | '/'
     | '/api/auth/$'
   id:
     | '__root__'
-    | '/'
+    | '/_app'
     | '/docs'
     | '/recover'
+    | '/_app/categories'
+    | '/_app/profiles'
+    | '/_app/transactions'
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
+    | '/_app/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   DocsRoute: typeof DocsRoute
   RecoverRoute: typeof RecoverRoute
   ApiDataRoute: typeof ApiDataRoute
@@ -123,11 +166,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -143,6 +186,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/recover'
       preLoaderRoute: typeof RecoverRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/categories': {
+      id: '/_app/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AppCategoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/profiles': {
+      id: '/_app/profiles'
+      path: '/profiles'
+      fullPath: '/profiles'
+      preLoaderRoute: typeof AppProfilesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/transactions': {
+      id: '/_app/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof AppTransactionsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/api/data': {
       id: '/api/data'
@@ -175,8 +246,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppRouteChildren {
+  AppCategoriesRoute: typeof AppCategoriesRoute
+  AppProfilesRoute: typeof AppProfilesRoute
+  AppTransactionsRoute: typeof AppTransactionsRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppCategoriesRoute: AppCategoriesRoute,
+  AppProfilesRoute: AppProfilesRoute,
+  AppTransactionsRoute: AppTransactionsRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   DocsRoute: DocsRoute,
   RecoverRoute: RecoverRoute,
   ApiDataRoute: ApiDataRoute,
