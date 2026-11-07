@@ -122,7 +122,7 @@ export async function handleTelegramWebhook(
   recoverPassword?: TelegramRecovery,
 ): Promise<Response> {
   if (
-    !env.TELEGRAM_WEBHOOK_SECRET ||
+    !/^[A-Za-z0-9_-]{32,256}$/.test(env.TELEGRAM_WEBHOOK_SECRET ?? "") ||
     !(await secretMatches(
       request.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "",
       env.TELEGRAM_WEBHOOK_SECRET,

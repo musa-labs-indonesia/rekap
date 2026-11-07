@@ -116,7 +116,7 @@ const secrets = [
   ["TELEGRAM_BOT_USERNAME", "Nama bot tanpa tanda @."],
   [
     "TELEGRAM_WEBHOOK_SECRET",
-    "Rahasia webhook acak: 1 sampai 256 karakter. Gunakan huruf, angka, garis bawah, atau tanda hubung.",
+    "Rahasia webhook acak: 32 sampai 256 karakter. Gunakan huruf, angka, garis bawah, atau tanda hubung. Buat nilai acak dengan openssl rand -hex 32 dan jaga kerahasiaannya.",
   ],
   [
     "TRUSTED_TELEGRAM_USER_ID",
@@ -621,6 +621,9 @@ export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
 }`}</CodeBlock>
               <p>
                 Ganti setiap nilai contoh. Jangan masukkan berkas ini ke Git.
+                Jika rahasia webhook lama kurang dari 32 karakter, ganti rahasia
+                Worker dan nilai secret_token di Telegram. Pengiriman akan gagal
+                sampai kedua nilai sama.
               </p>
               <div className="space-y-3 sm:hidden">
                 {secrets.map(([name, description]) => (

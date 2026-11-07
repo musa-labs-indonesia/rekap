@@ -9,6 +9,7 @@ import type { TelegramEnv, TelegramRecovery } from './telegram'
 let sqlite: DatabaseSync
 let env: TelegramEnv
 let replies: Array<{ chat_id: string; text: string; reply_parameters: { message_id: number } }>
+const webhookSecret = 'test-webhook-secret-0123456789abcdef'
 
 function database(db: DatabaseSync): D1Database {
   return {
@@ -29,7 +30,7 @@ function database(db: DatabaseSync): D1Database {
 function request(text: string, options: { chat?: number; type?: string; from?: number; id?: number; date?: number; secret?: string } = {}) {
   return new Request('https://app.example/telegram', {
     method: 'POST',
-    headers: { 'X-Telegram-Bot-Api-Secret-Token': options.secret ?? 'secret' },
+    headers: { 'X-Telegram-Bot-Api-Secret-Token': options.secret ?? webhookSecret },
     body: JSON.stringify({ message: {
       message_id: options.id ?? 1,
       date: options.date ?? Math.floor(Date.now() / 1000),
@@ -53,7 +54,7 @@ beforeEach(() => {
   sqlite.exec(readFileSync('migrations/0001_spending.sql', 'utf8'))
   sqlite.exec("INSERT INTO profiles VALUES ('p', 'Rumah', '-100', 0, 1), ('archived', 'Arsip', '-200', 1, 1), ('other', 'Lain', '-300', 0, 1)")
   sqlite.exec("INSERT INTO categories VALUES ('c', 'p', 'Makan', 'makan', 0), ('arch-c', 'p', 'Lama', 'lama', 1), ('other-c', 'other', 'Lain', 'lain', 0)")
-  env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: 'secret', TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example' }
+  env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: webhookSecret, TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example' }
   replies = []
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
     replies.push(JSON.parse(String(init.body)))
@@ -72,8 +73,17 @@ describe('Telegram webhook', () => {
   it('checks webhook secret before any work and rejects malformed requests', async () => {
     expect((await handleTelegramWebhook(request('catat', { secret: 'wrong' }), env)).status).toBe(401)
     expect(replies).toHaveLength(0)
-    expect((await handleTelegramWebhook(new Request('https://app.example', { headers: { 'X-Telegram-Bot-Api-Secret-Token': 'secret' } }), env)).status).toBe(405)
-    expect((await handleTelegramWebhook(new Request('https://app.example', { method: 'POST', headers: { 'X-Telegram-Bot-Api-Secret-Token': 'secret' }, body: '{' }), env)).status).toBe(400)
+    expect((await handleTelegramWebhook(new Request('https://app.example', { headers: { 'X-Telegram-Bot-Api-Secret-Token': webhookSecret } }), env)).status).toBe(405)
+    expect((await handleTelegramWebhook(new Request('https://app.example', { method: 'POST', headers: { 'X-Telegram-Bot-Api-Secret-Token': webhookSecret }, body: '{' }), env)).status).toBe(400)
+  })
+
+  it('rejects invalid configured webhook secrets even when the header matches', async () => {
+    for (const secret of ['a'.repeat(31), 'a'.repeat(257), `${'a'.repeat(31)}!`]) {
+      expect((await handleTelegramWebhook(request('/chatid', { secret }), { ...env, TELEGRAM_WEBHOOK_SECRET: secret })).status).toBe(401)
+    }
+    for (const secret of ['a'.repeat(32), 'a'.repeat(256)]) {
+      expect((await handleTelegramWebhook(request('/chatid', { secret }), { ...env, TELEGRAM_WEBHOOK_SECRET: secret })).status).toBe(200)
+    }
   })
 
   it('returns only the current chat ID before a profile is linked', async () => {

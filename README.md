@@ -20,10 +20,12 @@ Set these Worker secrets using a private JSON secrets file and pass it to `vp ex
 | `OWNER_PASSWORD` | Initial password: 12–128 characters |
 | `TELEGRAM_BOT_TOKEN` | BotFather token |
 | `TELEGRAM_BOT_USERNAME` | Bot username without `@` |
-| `TELEGRAM_WEBHOOK_SECRET` | Random Telegram webhook secret token, 1–256 letters, digits, `_` or `-` |
+| `TELEGRAM_WEBHOOK_SECRET` | Random Telegram webhook secret token, 32–256 letters, digits, `_` or `-` |
 | `TRUSTED_TELEGRAM_USER_ID` | Numeric user ID allowed to request recovery in a private chat |
 
 The owner account is created on the first auth request. Later changes to the initial username or password secrets do not reset the account. Change the password on the website. Keep `BETTER_AUTH_SECRET` stable across deployments. Deploy with the same `D1_DATABASE_ID` in the environment and verify the URL before linking Telegram. Deployment and migrations affect shared infrastructure; review them first.
+
+Generate a webhook secret with `openssl rand -hex 32`. The command prints a sensitive value: keep it private and use it for both the Worker secret and Telegram `setWebhook` secret token. Length alone does not make a secret random. Existing installations with a shorter secret must update both values when deploying this version; Telegram delivery will fail until they match.
 
 In BotFather, disable group privacy mode for this bot, then remove and re-add the bot to the group if needed. The bot needs normal group messages to receive `catat`. Configure Telegram `setWebhook` with URL `https://YOUR-ORIGIN/api/telegram` and the same `secret_token` as `TELEGRAM_WEBHOOK_SECRET`. Telegram must be able to reach the URL over HTTPS. Treat the bot token and webhook secret as passwords; avoid putting them in shell history, logs, or screenshots. Send `/chatid` in the chat to get its numeric ID; a group ID is normally negative. Create a profile on the website with that chat ID. Anyone in the linked group can add expenses and categories or request reports.
 
