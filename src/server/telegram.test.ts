@@ -76,6 +76,20 @@ describe('Telegram webhook', () => {
     expect((await handleTelegramWebhook(new Request('https://app.example', { method: 'POST', headers: { 'X-Telegram-Bot-Api-Secret-Token': 'secret' }, body: '{' }), env)).status).toBe(400)
   })
 
+  it('returns only the current chat ID before a profile is linked', async () => {
+    await handleTelegramWebhook(request('/chatid@otherbot', { chat: -1009876543210 }), env)
+    await handleTelegramWebhook(request('/chatid', { chat: -1009876543210, secret: 'wrong' }), env)
+    expect(replies).toHaveLength(0)
+    await handleTelegramWebhook(request('/CHATID@bot', { chat: -1009876543210, id: 7 }), env)
+    await handleTelegramWebhook(request('/chatid', { chat: 42, type: 'private', id: 8 }), env)
+    await handleTelegramWebhook(request('/chatid', { chat: -200, id: 9 }), env)
+    expect(replies.map(({ chat_id, text, reply_parameters }) => ({ chat_id, text, message_id: reply_parameters.message_id }))).toEqual([
+      { chat_id: '-1009876543210', text: 'ID chat: -1009876543210', message_id: 7 },
+      { chat_id: '42', text: 'ID chat: 42', message_id: 8 },
+      { chat_id: '-200', text: 'ID chat: -200', message_id: 9 },
+    ])
+  })
+
   it('rejects unknown and archived chats, while allowing group members', async () => {
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -999 }), env)
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -200 }), env)

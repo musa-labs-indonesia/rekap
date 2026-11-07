@@ -162,6 +162,7 @@ export async function handleTelegramWebhook(
   if (
     command !== "catat" &&
     command !== "/catat" &&
+    command !== "/chatid" &&
     command !== "/addcategory" &&
     command !== "/forgot_password" &&
     !Object.hasOwn(periods, command)
@@ -169,6 +170,11 @@ export async function handleTelegramWebhook(
     return new Response("OK");
 
   try {
+    if (command === "/chatid") {
+      await sendMessage(env, message, `ID chat: ${message.chat.id}`);
+      return new Response("OK");
+    }
+
     if (command === "/forgot_password") {
       if (
         message.chat.type !== "private" ||

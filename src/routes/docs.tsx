@@ -77,6 +77,10 @@ const commands = [
       "Mencatat pengeluaran. Empat bagian wajib: perintah, jumlah, item, dan kategori.",
   },
   {
+    command: "/chatid",
+    description: "Menampilkan ID chat saat ini, termasuk sebelum profil terhubung.",
+  },
+  {
     command: "/addcategory nama kategori",
     description: "Menambah kategori baru untuk profil yang terhubung.",
   },
@@ -700,8 +704,9 @@ export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
                   dapat mengakses URL melalui HTTPS.
                 </NumberedItem>
                 <NumberedItem number="3">
-                  Dapatkan ID chat numerik dari klien Telegram tepercaya atau alat
-                  diagnostik administrator. ID grup biasanya negatif.
+                  Kirim <InlineCode>/chatid</InlineCode> di chat yang ingin
+                  dihubungkan. Bot akan membalas dengan ID chat; ID grup biasanya
+                  negatif.
                 </NumberedItem>
                 <NumberedItem number="4">
                   Masuk ke situs web sebagai pemilik, lalu buat profil dengan ID
