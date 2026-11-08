@@ -103,6 +103,21 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0))
 
+  installer:
+    devDependencies:
+      '@cloudflare/vite-plugin':
+        specifier: ^2.0.0-beta.v.12
+        version: 2.0.0-beta.v.12(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0))(workerd@1.20261104.1)
+      cf:
+        specifier: 1.0.0-beta.28
+        version: 1.0.0-beta.28(@types/node@22.20.5)
+      miniflare:
+        specifier: 5.20261104.0-beta
+        version: 5.20261104.0-beta(@types/node@22.20.5)
+      vite:
+        specifier: ^8.0.0
+        version: 8.3.6(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)
+
 packages:
 
   '@babel/code-frame@7.29.7':

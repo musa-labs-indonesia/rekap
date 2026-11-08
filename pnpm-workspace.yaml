@@ -4,3 +4,4 @@ allowBuilds:
   workerd: true
 packages:
   - .
+  - installer

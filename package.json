@@ -9,6 +9,7 @@
     "dev": "vite dev --port 3000",
     "generate-routes": "vite build",
     "build": "vite build",
+    "build:installer-artifact": "vite build && node scripts/prepare-installer-artifact.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
