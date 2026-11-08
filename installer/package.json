@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "pnpm --dir .. build:installer-artifact && vite dev --port 3001",
     "build": "pnpm --dir .. build:installer-artifact && vite build",
-    "test": "pnpm run build && node --test index.test.mjs"
+    "test": "pnpm run build && node --test index.test.mjs recovery.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^2.0.0-beta.v.12",

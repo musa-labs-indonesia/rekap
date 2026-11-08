@@ -35,7 +35,9 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
   let migrationRuntime
   let migrationDb
   let migrationName
+  let migrationBindings = []
   let migrationAttempts = 0
+  let migrationSubdomain = false
   let failMigrationUpload = false
   const applied = new Set()
   const databaseId = '11111111-2222-4333-8444-555555555555'
@@ -119,13 +121,17 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
         const migrationPath = url.pathname.match(new RegExp(`^/client/v4/accounts/${accountId}/workers/scripts/(rekap-migrate-[a-f0-9]{16})(/.*)?$`))
         if (migrationPath) {
           const [, name, suffix = ''] = migrationPath
-          if (suffix === '/settings') return migrationName === name ? Response.json({ success: true, result: { bindings: [{ name: 'DB', type: 'd1', database_id: databaseId }] } }) : Response.json({ success: false }, { status: 404 })
+          if (suffix === '/settings') return migrationName === name ? Response.json({ success: true, result: { bindings: migrationBindings } }) : Response.json({ success: false }, { status: 404 })
           if (suffix === '' && request.method === 'PUT') {
             if (failMigrationUpload) return Response.json({ success: false }, { status: 503 })
             const form = await request.formData()
             const metadata = JSON.parse(await form.get('metadata').text())
             assert.equal(metadata.bindings[0].database_id, databaseId)
+            assert.equal(metadata.bindings[1].name, 'MIGRATION_OWNER')
+            assert.equal(metadata.bindings[1].type, 'plain_text')
+            migrationBindings = metadata.bindings
             migrationName = name
+            migrationSubdomain = false
             migrationRuntime = new Miniflare({ workers: [{ config: { name: 'migration', compatibilityDate: '2026-11-08', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: await form.get('index.js').text() } } }, env: { DB: { type: 'd1', id: 'migration-test-db' } } } }] })
             migrationDb = await migrationRuntime.getD1Database('DB')
             await migrationDb.batch([
@@ -137,15 +143,12 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
             ])
             return Response.json({ success: true, result: {} })
           }
-          if (suffix === '/subdomain') return Response.json({ success: true, result: {} })
-          if (suffix === '' && request.method === 'DELETE') {
-            const row = await migrationDb.prepare('SELECT amount FROM spending').first()
-            assert.equal(row.amount, 23000)
-            await migrationRuntime.dispose()
-            migrationRuntime = undefined
-            migrationName = undefined
-            return Response.json({ success: true, result: {} })
+          if (suffix === '/subdomain') {
+            if (request.method === 'GET') return Response.json({ success: true, result: { enabled: migrationSubdomain, previews_enabled: false } })
+            migrationSubdomain = (await request.json()).enabled === true
+            return Response.json({ success: true, result: { enabled: migrationSubdomain } })
           }
+          if (suffix === '' && request.method === 'DELETE') assert.fail('Installer must not delete the migration Worker')
         }
         const workerPath = url.pathname.match(new RegExp(`^/client/v4/accounts/${accountId}/workers/scripts/(rekap-[a-f0-9]{12})(/.*)?$`))
         if (workerPath) {
@@ -203,6 +206,11 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
         }
         if (url.pathname === `/client/v4/accounts/${accountId}/workers/assets/upload`) return Response.json({ success: true, result: { jwt: 'asset-completion' } })
         if (migrationName && url.hostname === `${migrationName}.test-subdomain.workers.dev`) {
+          if (!migrationSubdomain) return new Response(null, { status: 404 })
+          if (request.method !== 'POST') {
+            const result = await migrationRuntime.dispatchFetch('https://migration.test/', { method: 'GET' })
+            return new Response(null, { status: result.status })
+          }
           migrationAttempts++
           const denied = await migrationRuntime.dispatchFetch('https://migration.test/', { method: 'POST', headers: { Authorization: 'wrong' } })
           assert.equal(denied.status, 403)

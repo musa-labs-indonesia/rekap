@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import './styles.css'
 
 type Account = { id: string; name: string }
-type Installation = { phase: string; name: string; bot: string; verificationUrl?: string; appUrl?: string; notice?: string; updateAvailable?: boolean; migrationWorker?: string }
+type Installation = { phase: string; name: string; bot: string; verificationUrl?: string; appUrl?: string; notice?: string; updateAvailable?: boolean; migrationWorker?: string; migrationWorkerUrl?: string; orphanWorkers?: string[]; orphanVersionTags?: string[]; blocked?: { from?: string; reason?: string; canCancel?: boolean; canRetry?: 'migration' | 'version'; databaseChanged?: boolean; database?: string; previousVersion?: string; newVersion?: string } }
 type Details = { botToken: string; username: string; password: string }
 
 const emptyDetails = { botToken: '', username: '', password: '' }
@@ -18,7 +18,7 @@ const phases: Record<string, string> = {
   worker: 'Mengunggah aplikasi', worker_pending: 'Memeriksa aplikasi', domain: 'Mengaktifkan alamat',
   health: 'Memeriksa aplikasi', webhook: 'Menghubungkan Telegram', commands: 'Menyiapkan menu bot',
   update_prepare: 'Memeriksa aplikasi dan database', update_deploy: 'Menyiapkan versi baru',
-  update_migration_domain: 'Menyiapkan migrasi database', update_migration_apply: 'Memperbarui database', update_migration_cleanup: 'Membersihkan Worker sementara',
+  update_migration_domain: 'Mengaktifkan route migrasi', update_migration_apply: 'Memperbarui database', update_migration_cleanup: 'Mematikan route Worker sementara',
   update_deploy_pending: 'Memeriksa versi aktif', update_health: 'Memeriksa aplikasi',
 }
 const errors: Record<string, string> = {
@@ -35,13 +35,61 @@ const errors: Record<string, string> = {
   'Invalid installation details': 'Periksa token bot, nama pengguna, dan kata sandi.',
   'Database migrations require a manual update': 'Riwayat atau perubahan database ini membutuhkan pembaruan manual.',
   'Database migration did not complete': 'Perubahan database belum selesai. Periksa database sebelum melanjutkan.',
-  'Could not remove migration Worker': 'Worker migrasi sementara belum dihapus. Periksa Cloudflare sebelum melanjutkan.',
   'Worker database binding does not match': 'Database Worker tidak cocok dengan pemasangan ini. Pembaruan dihentikan.',
   'Worker secrets are missing': 'Konfigurasi rahasia Worker tidak lengkap. Pembaruan dihentikan.',
   'Worker deployment changed during update': 'Versi aktif Worker berubah. Periksa Cloudflare sebelum melanjutkan.',
   'Migration Worker upload is unresolved; check Cloudflare before retrying': 'Pengunggahan Worker migrasi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
   'Worker version upload is unresolved; check Cloudflare before retrying': 'Pengunggahan versi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
   'Worker deployment is unresolved; check Cloudflare before retrying': 'Penerapan versi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
+  'Update is blocked; check Cloudflare before retrying': 'Pembaruan dihentikan karena keadaan Cloudflare belum pasti. Ikuti petunjuk pemeriksaan, lalu pilih Periksa lagi.',
+  'Worker subdomain route is not active yet': 'Route Worker sementara belum aktif. Installer tidak akan mengaktifkannya ulang secara otomatis. Tunggu, lalu pilih Periksa lagi. Jika route tetap tidak aktif, pilih Coba Worker baru.',
+  'Worker subdomain route is still active': 'Route Worker sementara masih aktif. Installer belum menyelesaikan pembersihan. Periksa Cloudflare, lalu pilih Periksa lagi.',
+  'Could not check Worker subdomain': 'Installer tidak dapat membaca status route Worker. Periksa Cloudflare, lalu pilih Periksa lagi.',
+  'Update cannot be cancelled': 'Pembaruan tidak dapat dibatalkan karena versi aktif Worker tidak cocok atau database sudah berubah. Periksa Cloudflare.',
+  'Update cannot be retried': 'Pembaruan tidak dapat dicoba ulang dari keadaan ini. Periksa Cloudflare.',
+}
+
+function pendingMessage(installation: Installation): string {
+  if (installation.phase === 'update_migration_upload_pending') return `Pengunggahan Worker migrasi${installation.migrationWorker ? ` ${installation.migrationWorker}` : ''} belum pasti. Installer akan memeriksa Cloudflare. Jika Worker ada dan milik pemasangan ini, pembaruan lanjut. Jika tidak ditemukan atau tidak dapat dibuktikan, pembaruan berhenti. Pilih Periksa lagi. Setelah itu, Anda dapat memilih Coba Worker baru.`
+  return 'Pengunggahan versi belum pasti. Installer akan mencari versi dengan penanda pembaruan. Jika ditemukan, pembaruan lanjut. Jika tidak, pembaruan berhenti. Pilih Periksa lagi. Setelah itu, Anda dapat memilih Coba versi baru. Installer tidak memakai ulang tag lama.'
+}
+
+function recoveryMessage(installation: Installation): string {
+  const worker = installation.migrationWorker ?? 'yang tercatat'
+  switch (installation.blocked?.reason) {
+    case 'migration_worker_missing':
+      return `Worker sementara ${worker} tidak ditemukan. Permintaan unggahan pertama mungkin masih berjalan. Pilih Periksa lagi untuk memeriksa ulang. Jika tidak muncul, pilih Coba Worker baru. Installer tidak akan memakai ulang nama lama.`
+    case 'migration_worker_unverified':
+      return `Worker sementara ${worker} ada di Cloudflare, tetapi installer tidak dapat membuktikan bahwa Worker itu milik pemasangan ini. Buka Workers & Pages dan periksa binding D1-nya. Jangan hapus Worker lain. Jika Anda yakin Worker itu milik pemasangan ini, matikan route workers.dev dan hapus manual, lalu pilih Periksa lagi. Jika tidak, pilih Coba Worker baru atau batalkan pembaruan.`
+    case 'migration_worker_cleanup_unverified':
+      return `Database sudah diperbarui, tetapi installer tidak dapat membuktikan bahwa Worker sementara ${worker} masih milik pemasangan ini. Installer tidak mengubah route atau menghapus Worker itu. Route workers.dev mungkin masih aktif. Periksa Worker dan route-nya di Cloudflare. Jika Anda yakin Worker itu milik pemasangan ini, matikan route dan hapus Worker itu secara manual, lalu pilih Periksa lagi.`
+    case 'migration_worker_route_disabled':
+      return `Route workers.dev untuk Worker sementara ${worker} tidak aktif. Installer sudah mengaktifkannya sebelum migrasi, tetapi route berubah. Aktifkan route itu di Cloudflare, lalu pilih Periksa lagi, atau pilih Coba Worker baru.`
+    case 'migration_worker_route_unknown':
+      return `Installer tidak dapat membaca status route Worker sementara ${worker}. Jangan anggap Worker itu hilang. Periksa Worker dan route-nya di Cloudflare. Jika route aktif, matikan route dan hapus Worker itu secara manual hanya jika Anda yakin Worker itu milik pemasangan ini, lalu pilih Periksa lagi.`
+    case 'migration_worker_route_unreachable':
+      return `Cloudflare melaporkan route Worker sementara ${worker} aktif, tetapi URL Worker belum merespons setelah 10 detik. Installer tidak menganggap route itu nonaktif. Tunggu, lalu pilih Periksa lagi. Jika URL tetap tidak merespons, pilih Coba Worker baru atau periksa Worker itu secara manual.`
+    case 'migration_worker_route_close_unresolved':
+      return `Database sudah diperbarui dan Cloudflare melaporkan route Worker sementara ${worker} nonaktif, tetapi URL Worker masih merespons setelah 10 detik. Tunggu, lalu pilih Periksa lagi. Jika URL masih merespons, hapus Worker itu secara manual hanya jika Anda yakin Worker itu milik pemasangan ini.`
+    case 'migration_route_enable_failed':
+      return `Cloudflare menolak permintaan untuk mengaktifkan route Worker sementara ${worker}. Periksa izin Workers Scripts di akun ini. Setelah izin diperbaiki, pilih Periksa lagi, atau pilih Coba Worker baru.`
+    case 'migration_route_enable_unresolved':
+      return `Hasil aktivasi route Worker sementara ${worker} belum pasti. Installer tidak akan mengirim permintaan aktivasi kedua karena permintaan pertama mungkin masih berjalan. Tunggu, lalu pilih Periksa lagi. Jika route tetap tidak aktif, pilih Coba Worker baru atau batalkan pembaruan.`
+    case 'migration_route_disable_failed':
+      return `Database sudah diperbarui, tetapi installer tidak dapat memastikan route Worker sementara ${worker} sudah dimatikan. Jangan tutup halaman. Matikan route workers.dev dan hapus Worker itu secara manual hanya jika Anda yakin Worker itu milik pemasangan ini, lalu pilih Periksa lagi.`
+    case 'migration_worker_unknown':
+      return 'Data pembaruan tidak lengkap. Periksa Worker dan database di Cloudflare sebelum melanjutkan.'
+    case 'worker_version_missing':
+      return 'Versi dengan penanda pembaruan ini tidak ditemukan. Permintaan unggahan pertama mungkin masih berjalan. Pilih Periksa lagi untuk memeriksa ulang. Jika tidak muncul, pilih Coba versi baru. Installer tidak akan memakai ulang tag lama.'
+    case 'worker_version_ambiguous':
+      return 'Ada lebih dari satu versi Worker dengan penanda pembaruan ini. Jangan hapus versi apa pun. Periksa Worker di Cloudflare, lalu pilih Periksa lagi, Coba versi baru, atau batalkan pembaruan.'
+    case 'worker_deployment_unresolved':
+      return 'Installer tidak dapat memastikan apakah deployment pertama selesai. Jangan ulangi deployment secara otomatis. Periksa versi aktif di Cloudflare. Jika versi baru sudah aktif, pilih Periksa lagi. Jika belum, deploy versi baru secara manual, lalu pilih Periksa lagi.'
+    case 'worker_deployment_changed':
+      return 'Versi aktif Worker berubah atau bukan satu versi penuh. Periksa deployment di Cloudflare. Jika perlu, kembalikan ke versi sebelumnya, lalu pilih Periksa lagi atau batalkan pembaruan.'
+    default:
+      return 'Pembaruan dihentikan. Periksa Cloudflare sebelum melanjutkan.'
+  }
 }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -151,6 +199,33 @@ function App() {
     } finally { setBusy(false) }
   }
 
+  async function cancelUpdate() {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await api<{ installation: Installation }>('/api/install/update/cancel', { accountId })
+      setInstallation(result.installation)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Tidak dapat membatalkan pembaruan.')
+    } finally { setBusy(false) }
+  }
+
+  async function retryUpdate(target: 'migration' | 'version') {
+    setBusy(true)
+    setError('')
+    try {
+      await api('/api/install/update/retry', { accountId, target })
+      const result = await api<{ installation: Installation }>('/api/install/step', { accountId })
+      setInstallation(result.installation)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Tidak dapat mencoba ulang pembaruan.')
+      try {
+        const result = await api<{ installation: Installation | null }>('/api/install/status', { accountId })
+        setInstallation(result.installation)
+      } catch { setError('Sesi berakhir. Sambungkan kembali untuk memeriksa pembaruan.') }
+    } finally { setBusy(false) }
+  }
+
   async function advance(run: boolean) {
     setBusy(true)
     setError('')
@@ -161,7 +236,7 @@ function App() {
         const result = await api<{ installation: Installation }>('/api/install/step', { accountId })
         current = result.installation
         setInstallation(current)
-      } while (run && current.phase !== 'done' && current.phase !== 'expired' && current.phase !== 'verify')
+      } while (run && current.phase !== 'done' && current.phase !== 'expired' && current.phase !== 'verify' && current.phase !== 'update_blocked')
       if (!run && current.phase === 'verify') setVerificationPending(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Pemasangan terhenti.')
@@ -232,7 +307,28 @@ function App() {
               </>}
               {installation?.phase.startsWith('update_') && <>
                 <p className="text-sm leading-relaxed">Perbarui <strong>{installation.name}</strong> di akun <strong>{account.name}</strong>. Pembaruan dapat mengubah struktur database. Rahasia Worker dan koneksi Telegram tidak diganti. Cadangkan database sebelum melanjutkan.</p>
-                {installation.phase === 'update_upload_pending' || installation.phase === 'update_migration_upload_pending' ? <Alert variant="destructive"><AlertTitle>Pengunggahan belum pasti</AlertTitle><AlertDescription>Periksa Worker {installation.migrationWorker && <strong>{installation.migrationWorker}</strong>} di Cloudflare sebelum melanjutkan. Installer tidak akan mengunggah ulang secara otomatis.</AlertDescription></Alert> : <>
+                {installation.migrationWorkerUrl && <p className="break-all text-xs text-muted-foreground">Worker migrasi: {installation.migrationWorkerUrl}</p>}
+                {installation.phase === 'update_blocked' || installation.phase === 'update_upload_pending' || installation.phase === 'update_migration_upload_pending' ? <>
+                  <Alert variant="destructive">
+                    <AlertTitle>{installation.phase === 'update_blocked' ? 'Pembaruan dihentikan' : 'Pengunggahan belum pasti'}</AlertTitle>
+                    <AlertDescription>{installation.phase === 'update_blocked' ? recoveryMessage(installation) : pendingMessage(installation)}</AlertDescription>
+                  </Alert>
+                  {installation.blocked && (installation.blocked.database || installation.blocked.previousVersion || installation.blocked.newVersion || installation.migrationWorkerUrl) && <dl className="grid gap-1 text-xs text-muted-foreground">
+                    {installation.migrationWorkerUrl && <div className="flex gap-2"><dt>URL Worker</dt><dd className="break-all">{installation.migrationWorkerUrl}</dd></div>}
+                    {installation.blocked.database && <div className="flex gap-2"><dt>Database</dt><dd className="break-all">{installation.blocked.database}</dd></div>}
+                    {installation.blocked.previousVersion && <div className="flex gap-2"><dt>Versi sebelumnya</dt><dd className="break-all">{installation.blocked.previousVersion}</dd></div>}
+                    {installation.blocked.newVersion && <div className="flex gap-2"><dt>Versi baru</dt><dd className="break-all">{installation.blocked.newVersion}</dd></div>}
+                  </dl>}
+                  {installation.blocked?.databaseChanged && <p className="text-sm text-muted-foreground">Database sudah berubah. Pembaruan ini tidak dapat dibatalkan.</p>}
+                  {installation.orphanWorkers?.length ? <p className="break-all text-sm text-muted-foreground">Worker sementara yang tidak dihapus: {installation.orphanWorkers.join(', ')}. Route Worker dari percobaan sebelumnya mungkin masih aktif. Matikan route dan hapus manual hanya jika Anda yakin Worker itu milik pemasangan ini.</p> : null}
+                  {installation.orphanVersionTags?.length ? <p className="break-all text-sm text-muted-foreground">Tag versi yang tidak dipakai ulang: {installation.orphanVersionTags.join(', ')}.</p> : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => advance(false)} disabled={busy}>Periksa lagi <ArrowRight data-icon="inline-end" /></Button>
+                    {installation.blocked?.canRetry === 'migration' && <Button variant="outline" onClick={() => retryUpdate('migration')} disabled={busy}>Coba Worker baru</Button>}
+                    {installation.blocked?.canRetry === 'version' && <Button variant="outline" onClick={() => retryUpdate('version')} disabled={busy}>Coba versi baru</Button>}
+                    {installation.blocked?.canCancel && <Button variant="outline" onClick={cancelUpdate} disabled={busy}>Batalkan pembaruan</Button>}
+                  </div>
+                </> : <>
                   <p className="text-sm text-muted-foreground">{phases[installation.phase] ?? 'Menyiapkan pembaruan'}{busy ? '...' : '.'}</p>
                   <Button onClick={() => advance(true)} disabled={busy}>Lanjutkan pembaruan <ArrowRight data-icon="inline-end" /></Button>
                 </>}
@@ -245,6 +341,8 @@ function App() {
                 <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full bg-secondary"><Check aria-hidden="true" className="size-5" /></span><p className="font-medium">Rekap sudah terpasang.</p></div>
                 <p className="text-sm leading-relaxed text-muted-foreground">Masuk dengan akun pemilik, lalu tambahkan profil dan chat Telegram. Matikan privacy mode di BotFather agar bot dapat membaca catatan di grup.</p>
                 {installation.notice && <p className="text-sm text-muted-foreground">Menu perintah bot yang sudah ada tidak diubah.</p>}
+                {installation.orphanWorkers?.length ? <Alert variant="destructive"><AlertTitle>Worker sementara tidak dihapus</AlertTitle><AlertDescription>Installer tidak menghapus Worker ini. Route Worker migrasi terakhir sudah dimatikan setelah migrasi selesai. Worker dari percobaan sebelumnya mungkin masih memiliki route aktif. Periksa setiap nama di Cloudflare, matikan route jika aktif, lalu hapus manual hanya jika Anda yakin Worker itu milik pemasangan ini: {installation.orphanWorkers.join(', ')}.</AlertDescription></Alert> : null}
+                {installation.orphanVersionTags?.length ? <Alert variant="destructive"><AlertTitle>Versi tidak dipakai</AlertTitle><AlertDescription>Tag versi ini mungkin memiliki versi yang tidak dipakai: {installation.orphanVersionTags.join(', ')}. Jangan hapus versi aktif. Periksa daftar versi Worker di Cloudflare.</AlertDescription></Alert> : null}
                 <Button asChild><a href={installation.appUrl} target="_blank" rel="noreferrer">Buka Rekap <ExternalLink data-icon="inline-end" /></a></Button>
                 {installation.updateAvailable && <><p className="text-sm text-muted-foreground">Versi baru tersedia. Pembaruan tidak mengganti database atau koneksi Telegram.</p><Button variant="outline" onClick={beginUpdate} disabled={busy}>Perbarui Rekap <ArrowRight data-icon="inline-end" /></Button></>}
               </>}

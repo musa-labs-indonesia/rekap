@@ -50,13 +50,36 @@ export async function getSubdomain(account: string, token: string): Promise<stri
   return result.subdomain
 }
 
-export async function workerDatabase(account: string, token: string, name: string): Promise<string | null> {
+type Binding = { name: string; type: string; id?: string; database_id?: string; text?: string }
+
+async function workerBindings(account: string, token: string, name: string): Promise<Binding[] | null> {
   const result = await fetch(api(account, `/workers/scripts/${name}/settings`), { headers: { Authorization: `Bearer ${token}` } })
   if (result.status === 404) return null
-  const data = await result.json() as { success?: boolean; result?: { bindings?: { name?: string; type?: string; database_id?: string; id?: string }[] } }
+  const data = await result.json() as { success?: boolean; result?: { bindings?: Binding[] } }
   if (!result.ok || !data.success || !Array.isArray(data.result?.bindings)) throw new Error('Could not check Worker settings')
-  const binding = data.result.bindings.find(item => item.name === 'DB' && item.type === 'd1')
+  return data.result.bindings
+}
+
+export async function workerDatabase(account: string, token: string, name: string): Promise<string | null> {
+  const bindings = await workerBindings(account, token, name)
+  if (bindings === null) return null
+  const binding = bindings.find(item => item.name === 'DB' && item.type === 'd1')
   return binding?.database_id ?? binding?.id ?? ''
+}
+
+export type MigrationWorkerState = 'missing' | 'owned' | 'unverified'
+
+export async function migrationWorkerState(account: string, token: string, name: string, database: string, ownership: string): Promise<MigrationWorkerState> {
+  const bindings = await workerBindings(account, token, name)
+  if (bindings === null) return 'missing'
+  const databases = bindings.filter(binding => binding.name === 'DB' && binding.type === 'd1')
+  const owners = bindings.filter(binding => binding.name === 'MIGRATION_OWNER' && binding.type === 'plain_text')
+  if (databases.length === 1 && (databases[0].database_id ?? databases[0].id) === database && owners.length === 1 && owners[0].text === ownership) return 'owned'
+  return 'unverified'
+}
+
+export function migrationByPath(path: string): Migration | null {
+  return artifact.migrations.find(migration => migration.path === path) ?? null
 }
 
 export async function applyMigrations(account: string, token: string, database: string): Promise<void> {
@@ -113,8 +136,6 @@ export async function uploadWorker(account: string, token: string, name: string,
   await request(account, token, `/workers/scripts/${name}`, 'PUT', form)
 }
 
-type Binding = { name: string; type: string; id?: string; database_id?: string }
-
 export async function activeVersion(account: string, token: string, name: string): Promise<string> {
   const result = await request<{ deployments?: { versions?: { version_id?: string; percentage?: number }[] }[] }>(account, token, `/workers/scripts/${name}/deployments`)
   const versions = result.deployments?.[0]?.versions
@@ -142,12 +163,12 @@ export async function updatePreflight(account: string, token: string, name: stri
   return { bindings, bookmark: backup.bookmark, pending: artifact.migrations.slice(applied.length) }
 }
 
-export async function uploadMigrationWorker(account: string, token: string, name: string, database: string, migration: Migration, password: string): Promise<void> {
+export async function uploadMigrationWorker(account: string, token: string, name: string, database: string, migration: Migration, password: string, ownership: string): Promise<void> {
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password))))
   const code = `const expected = new Uint8Array(${JSON.stringify(digest)});\nconst sql = ${JSON.stringify(migration.statements)};\nconst name = ${JSON.stringify(migration.path)};\nexport default { async fetch(request, env) {\n  if (request.method !== 'POST') return new Response(null, { status: 405 });\n  const actual = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(request.headers.get('Authorization') || ''));\n  if (!crypto.subtle.timingSafeEqual(expected, actual)) return new Response(null, { status: 403 });\n  try {\n    await env.DB.batch([\n      env.DB.prepare('CREATE TABLE IF NOT EXISTS rekap_migration_guard (name TEXT PRIMARY KEY NOT NULL)'),\n      env.DB.prepare('INSERT OR IGNORE INTO rekap_migration_guard (name) SELECT name FROM d1_migrations'),\n      env.DB.prepare('INSERT INTO rekap_migration_guard (name) VALUES (?)').bind(name),\n      ...sql.map(statement => env.DB.prepare(statement)),\n      env.DB.prepare('INSERT INTO d1_migrations (name) VALUES (?)').bind(name),\n    ]);\n    return new Response(null, { status: 204 });\n  } catch { return new Response(null, { status: 409 }); }\n} };`
   const metadata = {
     main_module: 'index.js', compatibility_date: artifact.compatibilityDate,
-    bindings: [{ name: 'DB', type: 'd1', database_id: database }],
+    bindings: [{ name: 'DB', type: 'd1', database_id: database }, { name: 'MIGRATION_OWNER', type: 'plain_text', text: ownership }],
     observability: { enabled: false, traces: { enabled: false }, logs: { enabled: false } },
   }
   const form = new FormData()
@@ -156,14 +177,32 @@ export async function uploadMigrationWorker(account: string, token: string, name
   await request(account, token, `/workers/scripts/${name}`, 'PUT', form)
 }
 
-export async function deleteMigrationWorker(account: string, token: string, name: string): Promise<void> {
-  const result = await fetch(api(account, `/workers/scripts/${name}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-  if (result.status === 404) return
-  const data = await result.json() as { success?: boolean }
-  if (!result.ok || !data.success) throw new Error('Could not remove migration Worker')
+export async function findVersionByTag(account: string, token: string, name: string, tag: string): Promise<string | null> {
+  const found: string[] = []
+  let pageSize = 0
+  for (let page = 1; page <= 20; page++) {
+    const response = await fetch(api(account, `/workers/workers/${name}/versions?page=${page}&per_page=100`), { headers: { Authorization: `Bearer ${token}` } })
+    const data = await response.json() as { success?: boolean; result?: { id?: string; annotations?: { 'workers/tag'?: string } }[]; result_info?: { per_page?: number; total_count?: number } }
+    if (!response.ok || !data.success || !Array.isArray(data.result)) throw new Error('Could not check Worker versions')
+    for (const version of data.result) {
+      if (version.annotations?.['workers/tag'] !== tag) continue
+      if (!version.id) throw new Error('Could not check Worker versions')
+      found.push(version.id)
+    }
+    if (data.result.length === 0) break
+    const perPage = data.result_info?.per_page
+    const total = data.result_info?.total_count
+    if (perPage !== undefined && total !== undefined && page * perPage >= total) break
+    if (perPage === undefined && data.result.length < 100) break
+    if (page === 1) pageSize = data.result.length
+    else if (data.result.length < pageSize) break
+    if (page === 20) throw new Error('Could not check all Worker versions')
+  }
+  if (found.length > 1) throw new Error('More than one matching Worker version exists')
+  return found[0] ?? null
 }
 
-export async function uploadUpdate(account: string, token: string, name: string, version: string, bindings: Binding[]): Promise<string> {
+export async function uploadUpdate(account: string, token: string, name: string, version: string, bindings: Binding[], tag: string): Promise<string> {
   const completion = await uploadAssets(account, token, name)
   if (await activeVersion(account, token, name) !== version) throw new Error('Worker deployment changed during update')
   const result = await request<{ id?: string }>(account, token, `/workers/workers/${name}/versions`, 'POST', {
@@ -173,7 +212,7 @@ export async function uploadUpdate(account: string, token: string, name: string,
     assets: { jwt: completion },
     bindings: bindings.map(binding => binding.type === 'assets' ? { name: binding.name, type: 'assets' } : { name: binding.name, type: 'inherit', version_id: version }),
     modules: artifact.bundle.filter(file => file.path.endsWith('.js')).map(file => ({ name: file.path, content_base64: file.content, content_type: 'application/javascript+module' })),
-    annotations: { 'workers/message': `Rekap ${artifact.id}` },
+    annotations: { 'workers/message': `Rekap ${artifact.id}`, 'workers/tag': tag },
   })
   if (!result.id) throw new Error('Worker version upload is unresolved')
   return result.id
@@ -183,8 +222,17 @@ export async function deployUpdate(account: string, token: string, name: string,
   await request(account, token, `/workers/scripts/${name}/deployments`, 'POST', { strategy: 'percentage', versions: [{ version_id: version, percentage: 100 }] })
 }
 
-export async function enableSubdomain(account: string, token: string, name: string): Promise<void> {
-  await request(account, token, `/workers/scripts/${name}/subdomain`, 'POST', { enabled: true })
+export async function setSubdomain(account: string, token: string, name: string, enabled: boolean): Promise<boolean | undefined> {
+  const result = await request<{ enabled?: boolean }>(account, token, `/workers/scripts/${name}/subdomain`, 'POST', { enabled })
+  return result.enabled
+}
+
+export async function workerSubdomainEnabled(account: string, token: string, name: string): Promise<boolean | null> {
+  const result = await fetch(api(account, `/workers/scripts/${name}/subdomain`), { headers: { Authorization: `Bearer ${token}` } })
+  if (result.status === 404) return null
+  const data = await result.json() as { success?: boolean; result?: { enabled?: boolean } }
+  if (!result.ok || !data.success || typeof data.result?.enabled !== 'boolean') throw new Error('Could not check Worker subdomain')
+  return data.result.enabled
 }
 
 export async function verifyInstallation(account: string, token: string, name: string, database: string): Promise<void> {
