@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import './styles.css'
 
 type Account = { id: string; name: string }
-type Installation = { phase: string; name: string; bot: string; verificationUrl?: string; appUrl?: string; notice?: string }
+type Installation = { phase: string; name: string; bot: string; verificationUrl?: string; appUrl?: string; notice?: string; updateAvailable?: boolean; migrationWorker?: string }
 type Details = { botToken: string; username: string; password: string }
 
 const emptyDetails = { botToken: '', username: '', password: '' }
@@ -17,6 +17,9 @@ const phases: Record<string, string> = {
   database: 'Menyiapkan database', database_pending: 'Memeriksa database', migrations: 'Menyiapkan tabel',
   worker: 'Mengunggah aplikasi', worker_pending: 'Memeriksa aplikasi', domain: 'Mengaktifkan alamat',
   health: 'Memeriksa aplikasi', webhook: 'Menghubungkan Telegram', commands: 'Menyiapkan menu bot',
+  update_prepare: 'Memeriksa aplikasi dan database', update_deploy: 'Menyiapkan versi baru',
+  update_migration_domain: 'Menyiapkan migrasi database', update_migration_apply: 'Memperbarui database', update_migration_cleanup: 'Membersihkan Worker sementara',
+  update_deploy_pending: 'Memeriksa versi aktif', update_health: 'Memeriksa aplikasi',
 }
 const errors: Record<string, string> = {
   'Bot already has a webhook': 'Bot ini sudah terhubung ke webhook lain. Gunakan bot baru agar koneksi lama tidak berubah.',
@@ -24,11 +27,21 @@ const errors: Record<string, string> = {
   'No valid workers.dev subdomain': 'Buat subdomain workers.dev di akun Cloudflare ini, lalu coba lagi.',
   'An installation already exists for this account': 'Akun ini sudah memiliki proses pemasangan. Muat ulang halaman untuk melanjutkan.',
   'Installation is busy or missing': 'Pemasangan sedang berjalan atau tidak ditemukan. Coba lagi sebentar.',
+  'Installer version changed during installation': 'Versi installer berubah saat pemasangan. Periksa resource di Cloudflare, lalu mulai ulang setelah pemasangan kedaluwarsa.',
   'Database creation is unresolved; check Cloudflare before retrying': 'Pembuatan database belum pasti. Periksa nama resource di Cloudflare sebelum melanjutkan.',
   'Worker upload is unresolved; check Cloudflare before retrying': 'Pengunggahan Worker belum pasti. Periksa nama resource di Cloudflare sebelum melanjutkan.',
   'App is not ready yet': 'Aplikasi belum merespons. Tunggu sebentar, lalu lanjutkan.',
   'Bot webhook changed during installation': 'Webhook bot berubah selama pemasangan. Periksa koneksi bot sebelum melanjutkan.',
   'Invalid installation details': 'Periksa token bot, nama pengguna, dan kata sandi.',
+  'Database migrations require a manual update': 'Riwayat atau perubahan database ini membutuhkan pembaruan manual.',
+  'Database migration did not complete': 'Perubahan database belum selesai. Periksa database sebelum melanjutkan.',
+  'Could not remove migration Worker': 'Worker migrasi sementara belum dihapus. Periksa Cloudflare sebelum melanjutkan.',
+  'Worker database binding does not match': 'Database Worker tidak cocok dengan pemasangan ini. Pembaruan dihentikan.',
+  'Worker secrets are missing': 'Konfigurasi rahasia Worker tidak lengkap. Pembaruan dihentikan.',
+  'Worker deployment changed during update': 'Versi aktif Worker berubah. Periksa Cloudflare sebelum melanjutkan.',
+  'Migration Worker upload is unresolved; check Cloudflare before retrying': 'Pengunggahan Worker migrasi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
+  'Worker version upload is unresolved; check Cloudflare before retrying': 'Pengunggahan versi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
+  'Worker deployment is unresolved; check Cloudflare before retrying': 'Penerapan versi belum pasti. Periksa Cloudflare sebelum melanjutkan.',
 }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -127,6 +140,17 @@ function App() {
     } finally { setBusy(false) }
   }
 
+  async function beginUpdate() {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await api<{ installation: Installation }>('/api/install/update', { accountId })
+      setInstallation(result.installation)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Tidak dapat memulai pembaruan.')
+    } finally { setBusy(false) }
+  }
+
   async function advance(run: boolean) {
     setBusy(true)
     setError('')
@@ -200,11 +224,18 @@ function App() {
                 <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={installation.verificationUrl} target="_blank" rel="noreferrer">Buka Telegram <ExternalLink data-icon="inline-end" /></a></Button><Button onClick={() => advance(false)} disabled={busy}>Periksa verifikasi</Button></div>
                 <p role="status" className="text-sm text-muted-foreground">{verificationPending ? 'Verifikasi belum ditemukan. Buka kembali bot dan tekan Start, lalu periksa lagi.' : 'Jika belum berhasil, buka kembali bot dan tekan Start sebelum memeriksa lagi.'}</p>
               </>}
-              {installation && installation.phase !== 'verify' && installation.phase !== 'done' && installation.phase !== 'expired' && <>
+              {installation && !installation.phase.startsWith('update_') && installation.phase !== 'verify' && installation.phase !== 'done' && installation.phase !== 'expired' && <>
                 <p className="text-sm leading-relaxed">Resource baru akan dibuat dengan nama <strong>{installation.name}</strong> di akun <strong>{account.name}</strong>.</p>
                 <p className="text-sm text-muted-foreground">{phases[installation.phase] ?? 'Menyiapkan pemasangan'}{busy ? '...' : '.'}</p>
                 <Button onClick={() => advance(true)} disabled={busy}>{installation.phase === 'database' ? 'Mulai pemasangan' : 'Lanjutkan pemasangan'} <ArrowRight data-icon="inline-end" /></Button>
                 <p className="text-sm text-muted-foreground">Proses dapat dilanjutkan setelah halaman ditutup, selama waktu pemasangan 30 menit belum habis.</p>
+              </>}
+              {installation?.phase.startsWith('update_') && <>
+                <p className="text-sm leading-relaxed">Perbarui <strong>{installation.name}</strong> di akun <strong>{account.name}</strong>. Pembaruan dapat mengubah struktur database. Rahasia Worker dan koneksi Telegram tidak diganti. Cadangkan database sebelum melanjutkan.</p>
+                {installation.phase === 'update_upload_pending' || installation.phase === 'update_migration_upload_pending' ? <Alert variant="destructive"><AlertTitle>Pengunggahan belum pasti</AlertTitle><AlertDescription>Periksa Worker {installation.migrationWorker && <strong>{installation.migrationWorker}</strong>} di Cloudflare sebelum melanjutkan. Installer tidak akan mengunggah ulang secara otomatis.</AlertDescription></Alert> : <>
+                  <p className="text-sm text-muted-foreground">{phases[installation.phase] ?? 'Menyiapkan pembaruan'}{busy ? '...' : '.'}</p>
+                  <Button onClick={() => advance(true)} disabled={busy}>Lanjutkan pembaruan <ArrowRight data-icon="inline-end" /></Button>
+                </>}
               </>}
               {installation?.phase === 'expired' && <>
                 <Alert variant="destructive"><AlertTitle>Waktu pemasangan habis</AlertTitle><AlertDescription>Pemasangan tidak dapat dilanjutkan. Resource {installation.name} mungkin sudah dibuat di Cloudflare dan tidak akan dihapus oleh installer. Periksa resource tersebut sebelum memulai ulang.</AlertDescription></Alert>
@@ -215,6 +246,7 @@ function App() {
                 <p className="text-sm leading-relaxed text-muted-foreground">Masuk dengan akun pemilik, lalu tambahkan profil dan chat Telegram. Matikan privacy mode di BotFather agar bot dapat membaca catatan di grup.</p>
                 {installation.notice && <p className="text-sm text-muted-foreground">Menu perintah bot yang sudah ada tidak diubah.</p>}
                 <Button asChild><a href={installation.appUrl} target="_blank" rel="noreferrer">Buka Rekap <ExternalLink data-icon="inline-end" /></a></Button>
+                {installation.updateAvailable && <><p className="text-sm text-muted-foreground">Versi baru tersedia. Pembaruan tidak mengganti database atau koneksi Telegram.</p><Button variant="outline" onClick={beginUpdate} disabled={busy}>Perbarui Rekap <ArrowRight data-icon="inline-end" /></Button></>}
               </>}
             </>}
           </CardContent>

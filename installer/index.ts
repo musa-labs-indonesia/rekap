@@ -296,7 +296,7 @@ export default {
         return response({ username: bot.result.username, canJoinGroups: bot.result.can_join_groups === true, canReadGroupMessages: bot.result.can_read_all_group_messages === true, hasWebhook: webhook.result.url.length > 0 })
       }
 
-      if (request.method === 'POST' && ['/api/install/start', '/api/install/status', '/api/install/step', '/api/install/reset'].includes(url.pathname)) {
+      if (request.method === 'POST' && ['/api/install/start', '/api/install/status', '/api/install/step', '/api/install/reset', '/api/install/update'].includes(url.pathname)) {
         const session = await authorized(request, env)
         if (!session) return response({ error: 'Not authorized' }, 401)
         let body: { accountId?: unknown; botToken?: unknown; username?: unknown; password?: unknown } | null
@@ -311,6 +311,7 @@ export default {
         try {
           if (url.pathname === '/api/install/status') return response({ installation: await job.status() })
           if (url.pathname === '/api/install/step') return response({ installation: await job.step(body.accountId, session.token) })
+          if (url.pathname === '/api/install/update') return response({ installation: await job.startUpdate(body.accountId) })
           if (url.pathname === '/api/install/reset') {
             await job.resetExpired()
             return response({ installation: null })
@@ -319,7 +320,7 @@ export default {
           return response({ installation: await job.start(body.accountId, session.token, { botToken: body.botToken, username: body.username, password: body.password }) })
         } catch (error) {
           const message = error instanceof Error ? error.message : ''
-          const known = ['An installation already exists for this account', 'Bot cannot be used', 'Bot already has a webhook', 'No valid workers.dev subdomain', 'Installation is busy or missing', 'Installation is busy or not expired', 'Database name is already in use', 'Database creation is unresolved; check Cloudflare before retrying', 'Worker name is already in use', 'Worker upload is unresolved; check Cloudflare before retrying', 'App is not ready yet', 'Bot webhook changed during installation']
+          const known = ['An installation already exists for this account', 'Bot cannot be used', 'Bot already has a webhook', 'No valid workers.dev subdomain', 'Installation is busy or missing', 'Installation is busy or not expired', 'Installer version changed during installation', 'Database name is already in use', 'Database creation is unresolved; check Cloudflare before retrying', 'Worker name is already in use', 'Worker upload is unresolved; check Cloudflare before retrying', 'App is not ready yet', 'Bot webhook changed during installation', 'Update is not available', 'Installer version changed during update', 'Worker deployment is not a single version', 'Worker bindings are unavailable', 'Worker database binding does not match', 'Worker secrets are missing', 'Worker bindings are not supported', 'Database migrations require a manual update', 'Database migration did not complete', 'Could not remove migration Worker', 'Migration Worker upload is unresolved; check Cloudflare before retrying', 'Owner setup is incomplete', 'Database bookmark is unavailable', 'Worker deployment changed during update', 'Worker version upload is unresolved; check Cloudflare before retrying', 'Worker deployment is unresolved; check Cloudflare before retrying']
           return response({ error: known.includes(message) ? message : 'Installation step failed' }, 502)
         }
       }

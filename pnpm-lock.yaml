@@ -93,6 +93,9 @@ importers:
       cf:
         specifier: 1.0.0-beta.28
         version: 1.0.0-beta.28(@types/node@22.20.5)
+      sqlite3-parser:
+        specifier: 0.7.1
+        version: 0.7.1
       typescript:
         specifier: ^6.0.2
         version: 6.0.3
@@ -3153,6 +3156,10 @@ packages:
   source-map@0.7.6:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
+
+  sqlite3-parser@0.7.1:
+    resolution: {integrity: sha512-+KcAIcmD9xk4Sz3hNsEI7QEGAMGl3s5PyigIf6ri/u1DzAuAmi5YZInjtnXKqHvx9ySl5e0RYILfCVhTdAeKJg==}
+    hasBin: true
 
   srvx@1.0.8:
     resolution: {integrity: sha512-ngFS/J6St4PJfHRHGjr78xkPPtbyXtdMOLNE4x/XZunEK3OhV7aGUWMHf9WTUEy6wm1U0W4okkd82ZFFWRVQTw==}
@@ -6364,6 +6371,8 @@ snapshots:
   source-map@0.6.1: {}
 
   source-map@0.7.6: {}
+
+  sqlite3-parser@0.7.1: {}
 
   srvx@1.0.8: {}
 

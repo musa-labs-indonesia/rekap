@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
+import { parse, parseStmt } from 'sqlite3-parser'
 
 const output = resolve('.cloudflare/output/v0/workers/default')
 const target = resolve('.cloudflare/installer-artifact')
@@ -25,6 +26,7 @@ async function files(directory, root = directory) {
 const bundle = await files(join(output, 'bundle'))
 const assets = await files(join(output, 'assets'))
 const migrations = (await files(resolve('migrations'))).filter((name) => name.endsWith('.sql'))
+const compatibleMigrations = JSON.parse(await readFile(resolve('migrations/auto-update.json'), 'utf8'))
 if (!bundle.includes(configuration.manifest.mainModule) || migrations.length === 0) {
   throw new Error('The Rekap build is missing its entrypoint or migrations')
 }
@@ -42,6 +44,19 @@ async function copyFiles(source, destination, names) {
     await writeFile(to, bytes)
     const entry = { path: name, size: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') }
     if (destination === 'assets') entry.uploadHash = createHash('sha256').update(bytes.toString('base64') + extname(name).slice(1)).digest('hex').slice(0, 32)
+    if (destination === 'migrations') {
+      let sql = bytes.toString('utf8')
+      const script = parse(sql)
+      if (script.status !== 'ok' || !script.root.cmds.length) throw new Error(`Cannot parse migration: ${name}`)
+      entry.autoUpdate = compatibleMigrations[name] === entry.sha256
+      entry.statements = []
+      for (const _ of script.root.cmds) {
+        const statement = parseStmt(sql, { allowTrailing: true })
+        if (statement.status !== 'ok' || !statement.tail) throw new Error(`Cannot parse migration: ${name}`)
+        entry.statements.push(sql.slice(0, statement.tail).trim())
+        sql = sql.slice(statement.tail)
+      }
+    }
     entries.push(entry)
   }
   return entries
@@ -57,6 +72,7 @@ const manifest = {
   migrations: await copyFiles(resolve('migrations'), 'migrations', migrations),
 }
 
+manifest.id = createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
 await writeFile(join(target, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 const embedded = { ...manifest }
 for (const section of ['bundle', 'assets', 'migrations']) {

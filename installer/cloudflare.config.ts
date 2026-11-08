@@ -5,6 +5,8 @@ export default defineConfig({
     name: 'rekap-installer',
     entrypoint: './index.ts',
     compatibilityDate: '2026-11-08',
+    domains: process.env.INSTALLER_ORIGIN === 'https://install-rekap-musalabs.ptpcp.id' ? ['install-rekap-musalabs.ptpcp.id'] : undefined,
+    workersDev: process.env.INSTALLER_ORIGIN !== 'https://install-rekap-musalabs.ptpcp.id',
     observability: { enabled: false, traces: { enabled: false } },
     exports: {
       InstallerSession: workerExports.durableObject({ storage: 'sqlite' }),

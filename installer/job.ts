@@ -1,11 +1,11 @@
 import { DurableObject } from 'cloudflare:workers'
-import { applyMigrations, createDatabase, enableSubdomain, findDatabase, getSubdomain, uploadWorker, verifyInstallation, workerDatabase } from './deploy'
+import { activeVersion, applyMigrations, artifactId, createDatabase, deleteMigrationWorker, deployUpdate, enableSubdomain, findDatabase, getSubdomain, updatePreflight, uploadMigrationWorker, uploadUpdate, uploadWorker, verifyInstallation, workerDatabase } from './deploy'
 
 interface JobEnv { SESSION_KEY: string }
 type Input = { botToken: string; username: string; password: string }
 type Credentials = Input & { authSecret: string; webhookSecret: string }
-type Phase = 'verify' | 'database' | 'database_pending' | 'migrations' | 'worker' | 'worker_pending' | 'domain' | 'health' | 'webhook' | 'commands' | 'done' | 'expired'
-type Job = { phase: Phase; name: string; bot: string; nonce: string; expiresAt: number; secrets: string; subdomain: string; database?: string; telegramUser?: string; notice?: string }
+type Phase = 'verify' | 'database' | 'database_pending' | 'migrations' | 'worker' | 'worker_pending' | 'domain' | 'health' | 'webhook' | 'commands' | 'done' | 'expired' | 'update_prepare' | 'update_migration_upload_pending' | 'update_migration_domain' | 'update_migration_apply' | 'update_migration_cleanup' | 'update_upload_pending' | 'update_deploy' | 'update_deploy_pending' | 'update_health'
+type Job = { phase: Phase; name: string; bot: string; nonce: string; expiresAt: number; secrets: string; subdomain: string; artifactId: string; database?: string; telegramUser?: string; notice?: string; targetArtifactId?: string; previousVersion?: string; newVersion?: string; bookmark?: string; migrationWorker?: string; migrationName?: string }
 type Row = { value: string; lock_id: string | null; lock_until: number }
 
 const encoder = new TextEncoder()
@@ -18,6 +18,13 @@ function random(size = 32): string {
 async function encryptionKey(value: string): Promise<CryptoKey> {
   if (!/^[0-9a-f]{64}$/i.test(value)) throw new Error('Invalid session key')
   return crypto.subtle.importKey('raw', Uint8Array.from(value.match(/../g) ?? [], pair => parseInt(pair, 16)), 'AES-GCM', false, ['encrypt', 'decrypt'])
+}
+
+async function migrationPassword(key: string, account: string, worker: string, artifact: string): Promise<string> {
+  if (!/^[0-9a-f]{64}$/i.test(key)) throw new Error('Invalid session key')
+  const secret = await crypto.subtle.importKey('raw', Uint8Array.from(key.match(/../g) ?? [], pair => parseInt(pair, 16)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const signature = await crypto.subtle.sign('HMAC', secret, encoder.encode(JSON.stringify([account, worker, artifact])))
+  return Array.from(new Uint8Array(signature), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 async function encrypt(key: string, account: string, value: Credentials): Promise<string> {
@@ -40,10 +47,12 @@ async function telegram<T>(token: string, method: string, body?: object): Promis
 }
 
 function view(job: Job) {
-  return { phase: job.phase, name: job.name, bot: job.bot, verificationUrl: job.phase === 'verify' ? `https://t.me/${job.bot}?start=${job.nonce}` : undefined, appUrl: job.phase === 'done' ? `https://${job.name}.${job.subdomain}.workers.dev` : undefined, notice: job.notice }
+  return { phase: job.phase, name: job.name, bot: job.bot, verificationUrl: job.phase === 'verify' ? `https://t.me/${job.bot}?start=${job.nonce}` : undefined, appUrl: job.phase === 'done' ? `https://${job.name}.${job.subdomain}.workers.dev` : undefined, notice: job.notice, updateAvailable: job.phase === 'done' && job.artifactId !== artifactId, migrationWorker: job.phase === 'update_migration_upload_pending' ? job.migrationWorker : undefined }
 }
 
 export class InstallerJob extends DurableObject<JobEnv> {
+  private active = false
+
   constructor(ctx: DurableObjectState, env: JobEnv) {
     super(ctx, env)
     this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS job (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL, lock_id TEXT, lock_until INTEGER NOT NULL DEFAULT 0)')
@@ -64,6 +73,16 @@ export class InstallerJob extends DurableObject<JobEnv> {
     return job ? view(job) : null
   }
 
+  startUpdate(account: string) {
+    if (this.ctx.id.name !== account) throw new Error('Invalid account')
+    if (this.active) throw new Error('Installation is busy or missing')
+    const job = this.read()
+    if (!job || job.phase !== 'done' || !job.database || job.artifactId === artifactId) throw new Error('Update is not available')
+    const updated = this.ctx.storage.sql.exec<{ id: number }>("UPDATE job SET value = ? WHERE id = 1 AND lock_id IS NULL AND json_extract(value, '$.phase') = 'done' RETURNING id", JSON.stringify({ ...job, phase: 'update_prepare', targetArtifactId: artifactId, previousVersion: undefined, newVersion: undefined, bookmark: undefined })).toArray()
+    if (!updated.length) throw new Error('Installation is busy or missing')
+    return view(this.read()!)
+  }
+
   resetExpired(): void {
     const deleted = this.ctx.storage.sql.exec<{ id: number }>("DELETE FROM job WHERE id = 1 AND lock_id IS NULL AND json_extract(value, '$.phase') = 'expired' RETURNING id").toArray()
     if (!deleted.length) throw new Error('Installation is busy or not expired')
@@ -81,7 +100,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
     if (webhook.url) throw new Error('Bot already has a webhook')
     const expiresAt = Date.now() + 30 * 60_000
     const credentials = { ...input, authSecret: random(), webhookSecret: random() }
-    const job: Job = { phase: 'verify', name: `rekap-${random(6)}`, bot: bot.username, nonce: random(16), subdomain, expiresAt, secrets: await encrypt(this.env.SESSION_KEY, account, credentials) }
+    const job: Job = { phase: 'verify', name: `rekap-${random(6)}`, bot: bot.username, nonce: random(16), subdomain, artifactId, expiresAt, secrets: await encrypt(this.env.SESSION_KEY, account, credentials) }
     await this.ctx.storage.setAlarm(expiresAt)
     const inserted = this.ctx.storage.sql.exec<{ id: number }>('INSERT OR IGNORE INTO job (id, value) VALUES (1, ?) RETURNING id', JSON.stringify(job)).toArray()
     if (!inserted.length) throw new Error('An installation already exists for this account')
@@ -90,18 +109,112 @@ export class InstallerJob extends DurableObject<JobEnv> {
 
   async step(account: string, token: string) {
     if (this.ctx.id.name !== account) throw new Error('Invalid account')
+    if (this.active) throw new Error('Installation is busy or missing')
     const lock = random(16)
     const acquired = this.ctx.storage.sql.exec<{ value: string }>('UPDATE job SET lock_id = ?, lock_until = ? WHERE id = 1 AND lock_until < ? RETURNING value', lock, Date.now() + 10 * 60_000, Date.now()).toArray()
     if (!acquired.length) throw new Error('Installation is busy or missing')
+    this.active = true
     try {
       const job = JSON.parse(acquired[0].value) as Job
       if (job.phase === 'done' || job.phase === 'expired') return view(job)
+      if (job.phase.startsWith('update_')) {
+        if (!job.database || job.targetArtifactId !== artifactId) throw new Error('Installer version changed during update')
+        if (job.phase === 'update_prepare') {
+          const previous = await activeVersion(account, token, job.name)
+          if (job.previousVersion && previous !== job.previousVersion) throw new Error('Worker deployment changed during update')
+          let check: Awaited<ReturnType<typeof updatePreflight>>
+          try {
+            check = await updatePreflight(account, token, job.name, job.database, previous, true)
+            if (check.pending.some(migration => !migration.autoUpdate)) throw new Error('Database migrations require a manual update')
+          } catch (error) {
+            if (!job.previousVersion && error instanceof Error && error.message === 'Database migrations require a manual update') {
+              job.phase = 'done'
+              job.targetArtifactId = undefined
+              this.write(job)
+            }
+            throw error
+          }
+          job.previousVersion = previous
+          job.bookmark ??= check.bookmark
+          if (check.pending.length) {
+            const migration = check.pending[0]
+            job.migrationWorker = `rekap-migrate-${random(8)}`
+            job.migrationName = migration.path
+            if (await workerDatabase(account, token, job.migrationWorker) !== null) throw new Error('Worker name is already in use')
+            job.phase = 'update_migration_upload_pending'
+            this.write(job)
+            const password = await migrationPassword(this.env.SESSION_KEY, account, job.migrationWorker, artifactId)
+            await uploadMigrationWorker(account, token, job.migrationWorker, job.database, migration, password)
+            job.phase = 'update_migration_domain'
+            this.write(job)
+            return view(job)
+          }
+          job.phase = 'update_upload_pending'
+          this.write(job)
+          job.newVersion = await uploadUpdate(account, token, job.name, previous, check.bindings)
+          job.phase = 'update_deploy'
+          this.write(job)
+        } else if (job.phase === 'update_migration_domain' && job.migrationWorker) {
+          if (await workerDatabase(account, token, job.migrationWorker) !== job.database) throw new Error('Worker database binding does not match')
+          await enableSubdomain(account, token, job.migrationWorker)
+          job.phase = 'update_migration_apply'
+          this.write(job)
+        } else if (job.phase === 'update_migration_apply' && job.migrationWorker && job.migrationName && job.previousVersion) {
+          if (await activeVersion(account, token, job.name) !== job.previousVersion) throw new Error('Worker deployment changed during update')
+          if (await workerDatabase(account, token, job.migrationWorker) !== job.database) throw new Error('Worker database binding does not match')
+          let check = await updatePreflight(account, token, job.name, job.database, job.previousVersion, true)
+          if (check.pending.some(migration => migration.path === job.migrationName)) {
+            if (check.pending[0].path !== job.migrationName || !check.pending[0].autoUpdate) throw new Error('Database migrations require a manual update')
+            const password = await migrationPassword(this.env.SESSION_KEY, account, job.migrationWorker, artifactId)
+            await fetch(`https://${job.migrationWorker}.${job.subdomain}.workers.dev`, { method: 'POST', headers: { Authorization: password } }).catch(() => undefined)
+            check = await updatePreflight(account, token, job.name, job.database, job.previousVersion, true)
+            if (check.pending.some(migration => migration.path === job.migrationName)) throw new Error('Database migration did not complete')
+          }
+          job.phase = 'update_migration_cleanup'
+          this.write(job)
+        } else if (job.phase === 'update_migration_cleanup' && job.migrationWorker) {
+          const database = await workerDatabase(account, token, job.migrationWorker)
+          if (database !== null && database !== job.database) throw new Error('Worker database binding does not match')
+          if (database !== null) await deleteMigrationWorker(account, token, job.migrationWorker)
+          job.migrationWorker = undefined
+          job.migrationName = undefined
+          job.phase = 'update_prepare'
+          this.write(job)
+        } else if (job.phase === 'update_migration_upload_pending') {
+          throw new Error('Migration Worker upload is unresolved; check Cloudflare before retrying')
+        } else if (job.phase === 'update_deploy' && job.newVersion && job.previousVersion) {
+          if (await activeVersion(account, token, job.name) !== job.previousVersion) throw new Error('Worker deployment changed during update')
+          await updatePreflight(account, token, job.name, job.database, job.newVersion)
+          job.phase = 'update_deploy_pending'
+          this.write(job)
+          await deployUpdate(account, token, job.name, job.newVersion)
+          job.phase = 'update_health'
+          this.write(job)
+        } else if (job.phase === 'update_deploy_pending' && job.newVersion) {
+          if (await activeVersion(account, token, job.name) !== job.newVersion) throw new Error('Worker deployment is unresolved; check Cloudflare before retrying')
+          job.phase = 'update_health'
+          this.write(job)
+        } else if (job.phase === 'update_health' && job.newVersion) {
+          if (await activeVersion(account, token, job.name) !== job.newVersion) throw new Error('Worker deployment changed during update')
+          await updatePreflight(account, token, job.name, job.database, job.newVersion)
+          const health = await fetch(`https://${job.name}.${job.subdomain}.workers.dev/api/auth/get-session`, { redirect: 'manual' })
+          if (!health.ok) throw new Error('App is not ready yet')
+          job.artifactId = job.targetArtifactId
+          job.targetArtifactId = undefined
+          job.phase = 'done'
+          this.write(job)
+        } else {
+          throw new Error('Worker version upload is unresolved; check Cloudflare before retrying')
+        }
+        return view(job)
+      }
       if (job.expiresAt <= Date.now()) {
         job.phase = 'expired'
         job.secrets = ''
         this.write(job)
         return view(job)
       }
+      if (job.artifactId !== artifactId) throw new Error('Installer version changed during installation')
       const credentials = await decrypt(this.env.SESSION_KEY, account, job.secrets)
       if (job.phase === 'verify') {
         const updates = await telegram<{ message?: { text?: string; from?: { id?: number }; chat?: { id?: number; type?: string } } }[]>(credentials.botToken, 'getUpdates', { limit: 100, timeout: 0, allowed_updates: ['message'] })
@@ -179,13 +292,14 @@ export class InstallerJob extends DurableObject<JobEnv> {
       }
       return view(job)
     } finally {
+      this.active = false
       this.ctx.storage.sql.exec('UPDATE job SET lock_id = NULL, lock_until = 0 WHERE id = 1 AND lock_id = ?', lock)
     }
   }
 
   async alarm(): Promise<void> {
     const job = this.read()
-    if (job && job.phase !== 'done' && job.expiresAt <= Date.now()) {
+    if (job && job.phase !== 'done' && !job.phase.startsWith('update_') && job.expiresAt <= Date.now()) {
       job.secrets = ''
       job.phase = 'expired'
       this.write(job)

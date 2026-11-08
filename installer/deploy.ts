@@ -1,9 +1,11 @@
 type FileEntry = { path: string; size: number; sha256: string; content: string; uploadHash?: string }
-type Artifact = { mainModule: string; compatibilityDate: string; compatibilityFlags: string[]; bundle: FileEntry[]; assets: FileEntry[]; migrations: FileEntry[] }
+type Migration = FileEntry & { statements: string[]; autoUpdate: boolean }
+type Artifact = { id: string; mainModule: string; compatibilityDate: string; compatibilityFlags: string[]; bundle: FileEntry[]; assets: FileEntry[]; migrations: Migration[] }
 
 declare const __REKAP_ARTIFACT__: Artifact
 
 const artifact = __REKAP_ARTIFACT__
+export const artifactId = artifact.id
 const decoder = new TextDecoder()
 
 function bytes(content: string): Uint8Array<ArrayBuffer> {
@@ -72,7 +74,7 @@ export async function applyMigrations(account: string, token: string, database: 
   }
 }
 
-export async function uploadWorker(account: string, token: string, name: string, database: string, secrets: Record<string, string>): Promise<void> {
+async function uploadAssets(account: string, token: string, name: string): Promise<string> {
   const manifest = Object.fromEntries(artifact.assets.map(file => [`/${file.path}`, { hash: file.uploadHash, size: file.size }]))
   const upload = await request<{ jwt: string; buckets: string[][] }>(account, token, `/workers/scripts/${name}/assets-upload-session`, 'POST', { manifest })
   if (!upload.jwt || !Array.isArray(upload.buckets)) throw new Error('Invalid asset upload session')
@@ -90,6 +92,11 @@ export async function uploadWorker(account: string, token: string, name: string,
     if (result.jwt) completion = result.jwt
   }
   if (!completion) throw new Error('Asset upload did not complete')
+  return completion
+}
+
+export async function uploadWorker(account: string, token: string, name: string, database: string, secrets: Record<string, string>): Promise<void> {
+  const completion = await uploadAssets(account, token, name)
   const metadata = {
     main_module: artifact.mainModule,
     compatibility_date: artifact.compatibilityDate,
@@ -104,6 +111,76 @@ export async function uploadWorker(account: string, token: string, name: string,
     form.append(file.path, new Blob([bytes(file.content)], { type: 'application/javascript+module' }), file.path)
   }
   await request(account, token, `/workers/scripts/${name}`, 'PUT', form)
+}
+
+type Binding = { name: string; type: string; id?: string; database_id?: string }
+
+export async function activeVersion(account: string, token: string, name: string): Promise<string> {
+  const result = await request<{ deployments?: { versions?: { version_id?: string; percentage?: number }[] }[] }>(account, token, `/workers/scripts/${name}/deployments`)
+  const versions = result.deployments?.[0]?.versions
+  if (versions?.length !== 1 || versions[0].percentage !== 100 || !versions[0].version_id) throw new Error('Worker deployment is not a single version')
+  return versions[0].version_id
+}
+
+export async function updatePreflight(account: string, token: string, name: string, database: string, version: string, allowPending = false): Promise<{ bindings: Binding[]; bookmark: string; pending: Migration[] }> {
+  const result = await request<{ bindings?: Binding[] }>(account, token, `/workers/workers/${name}/versions/${version}`)
+  const bindings = result.bindings
+  if (!Array.isArray(bindings) || bindings.some(binding => !binding.name || !binding.type)) throw new Error('Worker bindings are unavailable')
+  const db = bindings.filter(binding => binding.name === 'DB' && binding.type === 'd1')
+  if (db.length !== 1 || (db[0].database_id ?? db[0].id) !== database) throw new Error('Worker database binding does not match')
+  const required = ['BETTER_AUTH_SECRET', 'OWNER_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET', 'TRUSTED_TELEGRAM_USER_ID', 'APP_URL']
+  if (required.some(name => !bindings.some(binding => binding.name === name && binding.type === 'secret_text'))) throw new Error('Worker secrets are missing')
+  if (bindings.some(binding => binding.name === 'OWNER_PASSWORD') || bindings.filter(binding => binding.name === 'ASSETS' && binding.type === 'assets').length !== 1) throw new Error('Worker bindings are not supported')
+  const migrations = await request<{ results?: { name?: string }[] }[]>(account, token, `/d1/database/${database}/query`, 'POST', { sql: 'SELECT name FROM d1_migrations ORDER BY id' })
+  const applied = migrations[0]?.results?.map(row => row.name)
+  const known = artifact.migrations.map(migration => migration.path)
+  if (!applied || applied.length > known.length || applied.some((name, index) => name !== known[index]) || (!allowPending && applied.length !== known.length)) throw new Error('Database migrations require a manual update')
+  const owner = await request<{ results?: { user_id?: string }[] }[]>(account, token, `/d1/database/${database}/query`, 'POST', { sql: 'SELECT user_id FROM auth_owner_bootstrap WHERE id = 1' })
+  if (!owner[0]?.results?.[0]?.user_id) throw new Error('Owner setup is incomplete')
+  const backup = await request<{ bookmark?: string }>(account, token, `/d1/database/${database}/time_travel/bookmark`)
+  if (!backup.bookmark) throw new Error('Database bookmark is unavailable')
+  return { bindings, bookmark: backup.bookmark, pending: artifact.migrations.slice(applied.length) }
+}
+
+export async function uploadMigrationWorker(account: string, token: string, name: string, database: string, migration: Migration, password: string): Promise<void> {
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password))))
+  const code = `const expected = new Uint8Array(${JSON.stringify(digest)});\nconst sql = ${JSON.stringify(migration.statements)};\nconst name = ${JSON.stringify(migration.path)};\nexport default { async fetch(request, env) {\n  if (request.method !== 'POST') return new Response(null, { status: 405 });\n  const actual = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(request.headers.get('Authorization') || ''));\n  if (!crypto.subtle.timingSafeEqual(expected, actual)) return new Response(null, { status: 403 });\n  try {\n    await env.DB.batch([\n      env.DB.prepare('CREATE TABLE IF NOT EXISTS rekap_migration_guard (name TEXT PRIMARY KEY NOT NULL)'),\n      env.DB.prepare('INSERT OR IGNORE INTO rekap_migration_guard (name) SELECT name FROM d1_migrations'),\n      env.DB.prepare('INSERT INTO rekap_migration_guard (name) VALUES (?)').bind(name),\n      ...sql.map(statement => env.DB.prepare(statement)),\n      env.DB.prepare('INSERT INTO d1_migrations (name) VALUES (?)').bind(name),\n    ]);\n    return new Response(null, { status: 204 });\n  } catch { return new Response(null, { status: 409 }); }\n} };`
+  const metadata = {
+    main_module: 'index.js', compatibility_date: artifact.compatibilityDate,
+    bindings: [{ name: 'DB', type: 'd1', database_id: database }],
+    observability: { enabled: false, traces: { enabled: false }, logs: { enabled: false } },
+  }
+  const form = new FormData()
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
+  form.append('index.js', new Blob([code], { type: 'application/javascript+module' }), 'index.js')
+  await request(account, token, `/workers/scripts/${name}`, 'PUT', form)
+}
+
+export async function deleteMigrationWorker(account: string, token: string, name: string): Promise<void> {
+  const result = await fetch(api(account, `/workers/scripts/${name}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+  if (result.status === 404) return
+  const data = await result.json() as { success?: boolean }
+  if (!result.ok || !data.success) throw new Error('Could not remove migration Worker')
+}
+
+export async function uploadUpdate(account: string, token: string, name: string, version: string, bindings: Binding[]): Promise<string> {
+  const completion = await uploadAssets(account, token, name)
+  if (await activeVersion(account, token, name) !== version) throw new Error('Worker deployment changed during update')
+  const result = await request<{ id?: string }>(account, token, `/workers/workers/${name}/versions`, 'POST', {
+    main_module: artifact.mainModule,
+    compatibility_date: artifact.compatibilityDate,
+    compatibility_flags: artifact.compatibilityFlags,
+    assets: { jwt: completion },
+    bindings: bindings.map(binding => binding.type === 'assets' ? { name: binding.name, type: 'assets' } : { name: binding.name, type: 'inherit', version_id: version }),
+    modules: artifact.bundle.filter(file => file.path.endsWith('.js')).map(file => ({ name: file.path, content_base64: file.content, content_type: 'application/javascript+module' })),
+    annotations: { 'workers/message': `Rekap ${artifact.id}` },
+  })
+  if (!result.id) throw new Error('Worker version upload is unresolved')
+  return result.id
+}
+
+export async function deployUpdate(account: string, token: string, name: string, version: string): Promise<void> {
+  await request(account, token, `/workers/scripts/${name}/deployments`, 'POST', { strategy: 'percentage', versions: [{ version_id: version, percentage: 100 }] })
 }
 
 export async function enableSubdomain(account: string, token: string, name: string): Promise<void> {

@@ -41,6 +41,45 @@ Send `/forgot_password` to the bot in a private chat from the trusted Telegram a
 
 If Telegram is unavailable, an operator with D1 write access can issue a recovery link from a trusted terminal. Set `D1_DATABASE_ID` and `APP_URL` as above, then run `node scripts/recover.mjs`. This writes to the remote database and invalidates any existing recovery link. It prints a sensitive link; do not save or share terminal output. Open the link within ten minutes and set a new password. For the disposable local database, use `--local` and the local database ID and origin instead.
 
+## Hosted installer and updates
+
+The hosted installer at https://install-rekap-musalabs.ptpcp.id currently uses a private Cloudflare OAuth client. Only authorized members of its owning account can use it until the client is made public. Its Cloudflare permissions can manage other Workers and D1 databases in the account you authorize; review the consent screen before continuing.
+
+The installer creates a Worker and D1 database with the same generated name. Keep that name and the D1 database ID for backups and removal. To check for an update, select **Periksa pembaruan** in Rekap, connect the same Cloudflare account, and select **Perbarui Rekap** if it is available. Review the account and Worker name before continuing.
+
+The updater reuses the existing Worker and database. It does not change the Telegram webhook or write new secret values. Back up the database before updating. The updater records a D1 Time Travel bookmark, but a bookmark is not a replacement for an independently stored backup. It applies only migrations approved for automatic updates; other migrations require a manual update. If an upload or deployment is uncertain, check Cloudflare before taking further action. Rolling back a Worker version does not restore D1 data.
+
+Before approving a migration in `migrations/auto-update.json`, review whether the running old Worker can safely use the changed schema throughout the update, including if deployment fails. Add the migration filename and its SHA-256 hash to the file only after that review. The approval list is empty initially. The hash detects changes to the reviewed file; it does not prove that the migration is safe. Migrations that cannot meet this requirement need a manual update plan.
+
+The current update check compares the embedded build's hash with the installed build's hash. It does not yet verify a Git tag or release, or prevent downgrades. Do not rely on it as a release verification mechanism.
+
+The installer currently tracks one installation per Cloudflare account. It does not yet provide a way to forget a completed installation. Deleting that installation's Worker and database does not clear the installer record, so a new hosted installation in the same account is not yet supported.
+
+## Disconnect and remove an installation
+
+1. Export the correct D1 database from the Cloudflare dashboard and verify the backup if you may need its spending data later. Deleting a database removes its data.
+2. In the installer, select **Putuskan koneksi**. This revokes the installer's current OAuth token; it does not delete the app or database. You can also revoke the authorization under Cloudflare profile → Access Management → Connected Applications.
+3. To stop Telegram from sending messages to the app, call Telegram's `deleteWebhook` method with the bot token. Keep the token out of chat, shell history, and logs. `deleteWebhook` does not revoke the bot token; retained pending messages may be delivered if you connect the bot again. To replace a compromised token, use BotFather's `/revoke` and replace the old token wherever it is used.
+4. In Cloudflare **Workers & Pages**, find the generated Rekap Worker and delete it. This stops the website and does not delete D1.
+5. Only after checking the backup and the database ID, delete the matching database in **Storage & databases → D1**. This is a separate, destructive action.
+
+Do not delete `rekap-installer` to remove a single Rekap app. That Worker hosts the installer and its installation records.
+
+To call `deleteWebhook` from a terminal, run the following command and enter the bot token when prompted. Input is hidden, and the token is passed to `curl` through standard input rather than a command-line argument. The response should contain `"ok":true`.
+
+```sh
+bash -c '
+  trap "stty echo" EXIT
+  printf "Bot token: " >&2
+  stty -echo
+  IFS= read -r token
+  stty echo
+  printf "\n" >&2
+  printf "url = \"https://api.telegram.org/bot%s/deleteWebhook\"\ndata = \"drop_pending_updates=false\"\n" "$token" | curl --silent --show-error --config -
+  unset token
+'
+```
+
 ## Local development
 
 Create an ignored `.dev.vars` file with the same variables, using `APP_URL=http://localhost:3000` and non-production credentials. Use the local placeholder database ID, then run `vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations` and `vp exec cf dev`. Telegram cannot send a webhook to localhost without a secure public tunnel. Never use production secrets or real spending data in local development.

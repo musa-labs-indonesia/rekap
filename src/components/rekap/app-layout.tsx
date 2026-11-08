@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   ReceiptText,
+  RefreshCw,
   Shapes,
   Users,
 } from "lucide-react";
@@ -179,6 +180,14 @@ function ShellContent() {
                       <BookOpen />
                       <span>Panduan</span>
                     </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild size="lg">
+                    <a href="https://install-rekap-musalabs.ptpcp.id" target="_blank" rel="noreferrer">
+                      <RefreshCw />
+                      <span>Periksa pembaruan</span>
+                    </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
