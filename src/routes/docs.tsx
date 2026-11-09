@@ -72,6 +72,10 @@ const commands = [
       "Mencatat pengeluaran. Empat bagian wajib: perintah, jumlah, item, dan kategori.",
   },
   {
+    command: "/help",
+    description: "Menampilkan panduan perintah, termasuk sebelum profil terhubung.",
+  },
+  {
     command: "/chatid",
     description: "Menampilkan ID chat saat ini, termasuk sebelum profil terhubung.",
   },
@@ -112,6 +116,10 @@ const websiteFeatures = [
   {
     title: "Ekspor CSV",
     description: "Unduh transaksi yang sedang tampil sebagai berkas CSV.",
+  },
+  {
+    title: "Impor CSV",
+    description: "Periksa dan impor hingga 500 transaksi ke profil aktif menggunakan format ekspor Rekap.",
   },
   {
     title: "Kategori",
@@ -419,9 +427,9 @@ function Docs() {
 
             <Section id="telegram" title="Perintah Telegram">
               <p>
-                Bot menerima perintah di grup atau chat pribadi yang terhubung ke
-                profil. Semua anggota chat dapat menambah pengeluaran, menambah
-                kategori, atau meminta laporan.
+                Hubungkan grup atau chat pribadi ke profil untuk mencatat
+                pengeluaran, menambah kategori, atau meminta laporan. Semua
+                anggota chat yang terhubung dapat menggunakan perintah tersebut.
               </p>
               <div className="space-y-3 sm:hidden">
                 {commands.map((item) => (
@@ -534,6 +542,9 @@ function Docs() {
               <p>
                 Installer membuat aplikasi dan database di akun Cloudflare yang
                 kamu pilih. Kamu tidak perlu mengunduh kode atau memakai terminal.
+              </p>
+              <p>
+                <a className="underline underline-offset-4" href="https://www.youtube.com/playlist?list=PLUxAoMuU5FD0" target="_blank" rel="noreferrer">Tonton panduan pemasangan di YouTube</a>.
               </p>
               <h3 className="text-lg font-semibold text-foreground">
                 Siapkan kebutuhan berikut

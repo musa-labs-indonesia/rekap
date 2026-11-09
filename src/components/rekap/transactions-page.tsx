@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, ReceiptText, RotateCcw } from "lucide-react";
+import { Download, Plus, ReceiptText, RotateCcw, Upload } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ import { useApp } from "./app-provider";
 import { ApiError, postAction } from "./api";
 import type { Expense } from "./api";
 import { ConfirmDialog } from "./confirm-dialog";
+import { ImportDialog } from "./import-dialog";
 import { PageHeader } from "./page-header";
 import { QueryError } from "./query-error";
 import { TransactionDialog } from "./transaction-dialog";
@@ -78,6 +80,8 @@ export function TransactionsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [imported, setImported] = useState(0);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
 
@@ -109,6 +113,8 @@ export function TransactionsPage() {
     setCategoryFilter("");
     setPage(1);
     setDialogOpen(false);
+    setImportOpen(false);
+    setImported(0);
     setEditing(null);
     setDeleteTarget(null);
     deleteMutation.reset();
@@ -181,6 +187,13 @@ export function TransactionsPage() {
         className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 md:py-8"
         aria-busy={loading}
       >
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!selectedProfile || archived || loading}>
+            <Upload />
+            Impor CSV
+          </Button>
+        </div>
+        {imported > 0 ? <Alert role="status"><AlertTitle>{imported} transaksi diimpor</AlertTitle><AlertDescription>Ubah rentang tanggal untuk melihat transaksi di luar periode yang dipilih.</AlertDescription></Alert> : null}
         <Card className="[--card-spacing:var(--space-4)]">
           <CardContent>
             <div
@@ -361,6 +374,15 @@ export function TransactionsPage() {
           ) : null}
         </Card>
       </div>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        profileId={selectedProfileId}
+        categories={categories}
+        onUnauthorized={handleUnauthorized}
+        onImported={setImported}
+      />
 
       <TransactionDialog
         open={dialogOpen}

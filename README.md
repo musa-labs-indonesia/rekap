@@ -49,9 +49,11 @@ In BotFather, disable group privacy mode for this bot, then remove and re-add th
 
 ## Usage
 
-Send `catat, 20.000, bubur ayam, makan` or `catat, 20000, bubur ayam, makan`. All four fields are required; amounts are positive whole rupiah. The sum of all expenses in one profile cannot exceed Rp9.000.000.000.000.000. New profiles start with `makan`, `transport`, `belanja`, and `tagihan`. Use `/addcategory nama kategori` to add one. Use `/report_daily`, `/report_weekly`, or `/report_monthly` for the current Jakarta period. Weeks begin on Monday. Editing or deleting a Telegram message does not change a saved expense; use the website instead.
+Send `/help` to see the bot commands, even before a chat is linked to a profile. Send `catat, 20.000, bubur ayam, makan` or `catat, 20000, bubur ayam, makan`. All four fields are required; amounts are positive whole rupiah. The sum of all expenses in one profile cannot exceed Rp9.000.000.000.000.000. New profiles start with `makan`, `transport`, `belanja`, and `tagihan`. Use `/addcategory nama kategori` to add one. Use `/report_daily`, `/report_weekly`, or `/report_monthly` for the current Jakarta period. Weeks begin on Monday. Editing or deleting a Telegram message does not change a saved expense; use the website instead.
 
-The website supports manual entries, historical dates, profile and category management, filters, and CSV export. Archived profiles can be restored. Archived categories remain on existing expenses but cannot be selected for new entries.
+The website supports manual entries, historical dates, profile and category management, filters, and CSV export. To import, select a profile and choose **Impor CSV** on the transactions page. Use UTF-8 CSV with columns `Tanggal,Item,Kategori,Jumlah`, ISO dates such as `2024-05-04`, and positive whole rupiah amounts without separators. Review the preview and any new categories before importing. Each file is limited to 500 transactions and 1 MB. Reimporting a file can create duplicates. Archived profiles can be restored. Archived categories remain on existing expenses but cannot be selected for new manual entries; imported transactions keep matching categories archived.
+
+CSV export prefixes an apostrophe to values that could be interpreted as spreadsheet formulas. Import preserves that apostrophe because it cannot tell whether it was part of the original value.
 
 ## Recovery
 

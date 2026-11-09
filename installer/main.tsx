@@ -269,6 +269,7 @@ function App() {
             <li className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary font-medium">2</span><span><strong className="block font-medium">Siapkan Telegram</strong><span className="text-muted-foreground">Gunakan bot baru dan verifikasi akunmu.</span></span></li>
             <li className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary font-medium">3</span><span><strong className="block font-medium">Buat aplikasi</strong><span className="text-muted-foreground">Rekap membuat Worker dan database D1.</span></span></li>
           </ol>
+          <p className="text-sm"><a className="underline underline-offset-4" href="https://www.youtube.com/playlist?list=PLUxAoMuU5FD0" target="_blank" rel="noreferrer">Tonton panduan pemasangan di YouTube</a></p>
           <p className="flex max-w-md items-start gap-2 text-sm leading-relaxed text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Data pengeluaran disimpan di akun Cloudflare yang kamu pilih.</p>
         </div>
 

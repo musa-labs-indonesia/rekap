@@ -118,7 +118,11 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           return Response.json({ ok: true, result: true })
         }
         if (url.pathname === `/bot${botToken}/getMyCommands`) return Response.json({ ok: true, result: [] })
-        if (url.pathname === `/bot${botToken}/setMyCommands`) return Response.json({ ok: true, result: true })
+        if (url.pathname === `/bot${botToken}/setMyCommands`) {
+          const body = await request.json()
+          assert.ok(body.commands.some(command => command.command === 'help'))
+          return Response.json({ ok: true, result: true })
+        }
         const migrationPath = url.pathname.match(new RegExp(`^/client/v4/accounts/${accountId}/workers/scripts/(rekap-migrate-[a-f0-9]{16})(/.*)?$`))
         if (migrationPath) {
           const [, name, suffix = ''] = migrationPath

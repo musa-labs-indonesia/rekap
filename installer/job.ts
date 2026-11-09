@@ -572,6 +572,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
         const commands = await telegram<{ command: string }[]>(credentials.botToken, 'getMyCommands')
         if (commands.length) job.notice = 'Existing Telegram command menu was not changed.'
         else await telegram(credentials.botToken, 'setMyCommands', { commands: [
+          { command: 'help', description: 'Tampilkan panduan perintah' },
           { command: 'chatid', description: 'Tampilkan ID chat' },
           { command: 'addcategory', description: 'Tambah kategori' },
           { command: 'report_daily', description: 'Laporan hari ini' },

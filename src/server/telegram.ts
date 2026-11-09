@@ -162,6 +162,7 @@ export async function handleTelegramWebhook(
   if (
     command !== "catat" &&
     command !== "/catat" &&
+    command !== "/help" &&
     command !== "/chatid" &&
     command !== "/addcategory" &&
     command !== "/forgot_password" &&
@@ -170,6 +171,21 @@ export async function handleTelegramWebhook(
     return new Response("OK");
 
   try {
+    if (command === "/help") {
+      await sendMessage(env, message, [
+        "Perintah Rekap:",
+        "catat, 20.000, bubur ayam, makan — catat pengeluaran",
+        "/help — tampilkan panduan ini",
+        "/chatid — tampilkan ID chat",
+        "/addcategory nama kategori — tambah kategori",
+        "/report_daily — laporan hari ini",
+        "/report_weekly — laporan minggu ini",
+        "/report_monthly — laporan bulan ini",
+        "/forgot_password — pulihkan kata sandi di chat pribadi pemilik",
+      ].join("\n"));
+      return new Response("OK");
+    }
+
     if (command === "/chatid") {
       await sendMessage(env, message, `ID chat: ${message.chat.id}`);
       return new Response("OK");

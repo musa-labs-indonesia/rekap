@@ -100,6 +100,19 @@ describe('Telegram webhook', () => {
     ])
   })
 
+  it('provides help before a chat is linked and ignores commands for another bot', async () => {
+    await handleTelegramWebhook(request('/help@otherbot', { chat: -999 }), env)
+    expect(replies).toHaveLength(0)
+    expect((await handleTelegramWebhook(request('/HELP@bot', { chat: -999, id: 42 }), env)).status).toBe(200)
+    expect(replies).toHaveLength(1)
+    expect(replies[0].chat_id).toBe('-999')
+    expect(replies[0].reply_parameters.message_id).toBe(42)
+    for (const command of ['catat, 20.000', '/help', '/chatid', '/addcategory', '/report_daily', '/report_weekly', '/report_monthly', '/forgot_password']) {
+      expect(replies[0].text).toContain(command)
+    }
+    expect(replies[0].text).toContain('chat pribadi')
+  })
+
   it('rejects unknown and archived chats, while allowing group members', async () => {
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -999 }), env)
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -200 }), env)

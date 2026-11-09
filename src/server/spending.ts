@@ -86,6 +86,49 @@ export async function spending(request: Request, db: D1Database): Promise<Respon
     return Response.json({ ok: true });
   }
   if (profile.archived) return bad("Profil ini sudah diarsipkan.");
+  if (action === "importExpenses") {
+    if (!Array.isArray(body.transactions) || body.transactions.length < 1 || body.transactions.length > 500)
+      return bad("Impor harus berisi 1–500 transaksi.");
+    const ids = new Set<string>();
+    const categories = new Map<string, string>();
+    const rows: { id: string; item: string; category: string; amount: number; occurredAt: number }[] = [];
+    for (const value of body.transactions) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return bad("Data transaksi tidak valid.");
+      const row = value as Payload;
+      const rowId = text(row.id);
+      const item = text(row.item);
+      const category = text(row.category);
+      const date = text(row.date);
+      const amount = row.amount;
+      const occurredAt = Date.parse(`${date}T12:00:00+07:00`);
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rowId) || ids.has(rowId) ||
+        !item || !category || category.length > 100 || category.includes(",") ||
+        typeof amount !== "number" || !Number.isSafeInteger(amount) || amount <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(occurredAt) ||
+        new Date(occurredAt + 7 * 3600000).toISOString().slice(0, 10) !== date
+      ) return bad("Data transaksi tidak valid.");
+      ids.add(rowId);
+      const key = categoryKey(category);
+      categories.set(key, categories.get(key) ?? category);
+      rows.push({ id: rowId, item, category: key, amount, occurredAt });
+    }
+    try {
+      await db.batch([
+        ...Array.from(categories, ([key, name]) => db.prepare(
+          "INSERT INTO categories (id, profile_id, name, name_key) VALUES (?, ?, ?, ?) ON CONFLICT(profile_id, name_key) DO NOTHING",
+        ).bind(id(), profileId, name, key)),
+        ...rows.map((row) => db.prepare(
+          "INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, created_at) SELECT ?, ?, (SELECT id FROM categories WHERE profile_id = ? AND name_key = ?), ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM expenses WHERE id = ?)",
+        ).bind(row.id, profileId, profileId, row.category, row.amount, row.item, row.occurredAt, Date.now(), row.id)),
+      ]);
+      return Response.json({ ok: true });
+    } catch (error) {
+      if (String(error).includes("spending limit exceeded"))
+        return bad("Total profil melebihi batas jumlah yang didukung.");
+      throw error;
+    }
+  }
   if (action === "createCategory" || action === "renameCategory") {
     const name = text(body.name);
     if (!name || name.includes(",") || name.length > 100) return bad("Nama kategori tidak valid.");
