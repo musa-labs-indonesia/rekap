@@ -2,9 +2,27 @@
 
 Rekap records spending from a Telegram group or private chat and shows reports on a private website. Each installation has one shared owner account. Each profile is linked to one chat and has its own categories and expenses. This project does not yet support WhatsApp.
 
-## Before deployment
+## Install Rekap
+
+Use the [hosted installer](https://install-rekap-musalabs.ptpcp.id) to create Rekap in your Cloudflare account. You do not need to clone this repository or use a terminal.
+
+Rekap is an early version. Test it with non-sensitive data before you rely on it. Back up D1, use a strong password, and add Cloudflare access controls if the site is public. Sign-in limits alone do not stop distributed password guessing.
+
+You need a Cloudflare account with Workers, D1, and a workers.dev subdomain, plus a Telegram bot from BotFather. The bot must be able to join groups and must not already have a webhook.
+
+1. Open the installer, connect Cloudflare, and review its requested permissions. They can manage other Workers and D1 databases in the account you authorize.
+2. Choose the account and enter the bot token and owner credentials. Use a strong owner password of at least 12 characters.
+3. Open the bot using the installer link and press **Start** in a private chat. This Telegram account can later request password recovery.
+4. Return to the installer, verify the Telegram account, and start installation. When it finishes, open Rekap and sign in.
+5. In BotFather, disable group privacy mode. Add the bot to your group, or remove and re-add it if it was already there. Send `/chatid` in the group or private chat, then create a profile with that ID in Rekap.
+
+The installer sets the Telegram webhook. Keep the bot token private. Anyone in a linked group can add expenses and categories or request reports. The [usage](#usage), [recovery](#recovery), and [updates](#hosted-installer-and-updates) sections cover operation after installation. The app also has a **Panduan** page.
+
+## Manual deployment
 
 This is an early version. Test it with non-sensitive data before you rely on it. Back up the D1 database. Sign-in and recovery have per-IP limits, but these do not stop distributed password guessing. Use a strong password and add Cloudflare access controls if you expose the site publicly. Do not enable Worker traces without checking that outbound Telegram URLs, which contain the bot token, are redacted. Disable request-body logging and protect logs and D1 backups.
+
+The following manual path is an alternative for operators who manage deployment themselves. The hosted installer does not require these steps.
 
 You need Node.js 22.18 or later, Vite+ (`vp`), a Cloudflare account with Workers and D1, and a Telegram bot created with BotFather. Run `vp install` and `vp exec cf auth login`.
 
@@ -43,7 +61,7 @@ If Telegram is unavailable, an operator with D1 write access can issue a recover
 
 ## Hosted installer and updates
 
-The hosted installer at https://install-rekap-musalabs.ptpcp.id currently uses a private Cloudflare OAuth client. Only authorized members of its owning account can use it until the client is made public. Its Cloudflare permissions can manage other Workers and D1 databases in the account you authorize; review the consent screen before continuing.
+The hosted installer at https://install-rekap-musalabs.ptpcp.id requests Cloudflare permissions that can manage other Workers and D1 databases in the account you authorize. Review the consent screen before continuing.
 
 The installer creates a Worker and D1 database with the same generated name. Keep that name and the D1 database ID for backups and removal. To check for an update, select **Periksa pembaruan** in Rekap, connect the same Cloudflare account, and select **Perbarui Rekap** if it is available. Review the account and Worker name before continuing.
 
@@ -96,6 +114,12 @@ bash -c '
 
 ## Local development
 
-Create an ignored `.dev.vars` file with the same variables, using `APP_URL=http://localhost:3000` and non-production credentials. Use the local placeholder database ID, then run `vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations` and `vp exec cf dev`. Telegram cannot send a webhook to localhost without a secure public tunnel. Never use production secrets or real spending data in local development.
+Clone the repository, install Node.js 22.18 or later and Vite+ (`vp`), then run `vp install`. Create an ignored `.dev.vars` file with the variables in [Manual deployment](#manual-deployment), using `APP_URL=http://localhost:3000` and non-production credentials. Use the local placeholder database ID, then run `vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations` and `vp exec cf dev`. Telegram cannot send a webhook to localhost without a secure public tunnel. Never use production secrets or real spending data in local development.
 
 Run `vp exec tsc --noEmit`, `vp test run src/server/auth.test.ts --config src/server/auth/test.config.ts`, `vp test run --root src/server telegram.test.ts`, and `vp exec cf build` for the current checks. The tests use a local SQLite test adapter, not a deployed D1 database or live Telegram API. Cloudflare limits and pricing can change; check current Workers and D1 quotas before deployment.
+
+For installer changes, run `pnpm --dir installer test`. The installer build embeds the app bundle and migrations. A push to GitHub does not update the hosted installer; it must be rebuilt and deployed separately.
+
+## Contributing
+
+Use the local development setup and checks above. Keep credentials, `.dev.vars` files, and real spending data out of commits. Describe the change and its verification when you open a pull request.

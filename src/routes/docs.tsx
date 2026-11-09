@@ -14,7 +14,6 @@ import {
   Send,
   Settings,
   ShieldCheck,
-  Terminal,
   WalletCards,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -53,11 +52,7 @@ const sections = [
     label: "Hubungkan Telegram",
     icon: Send,
   },
-  {
-    id: "lokal",
-    label: "Pengembangan lokal",
-    icon: Terminal,
-  },
+  { id: "pembaruan", label: "Pembaruan dan cadangan", icon: Settings },
   {
     id: "pemulihan",
     label: "Pemulihan kata sandi",
@@ -96,32 +91,6 @@ const commands = [
     command: "/report_monthly",
     description: "Menampilkan laporan bulan ini.",
   },
-];
-
-const secrets = [
-  [
-    "APP_URL",
-    "Alamat HTTPS publik aplikasi tanpa path atau garis miring di akhir.",
-  ],
-  [
-    "BETTER_AUTH_SECRET",
-    "Rahasia acak minimal 32 karakter. Gunakan nilai yang sama pada setiap rilis.",
-  ],
-  [
-    "OWNER_USERNAME",
-    "Nama pengguna awal: 3 sampai 30 karakter. Gunakan huruf Latin, angka, garis bawah, atau titik.",
-  ],
-  ["OWNER_PASSWORD", "Kata sandi awal: 12 sampai 128 karakter."],
-  ["TELEGRAM_BOT_TOKEN", "Token bot dari BotFather."],
-  ["TELEGRAM_BOT_USERNAME", "Nama bot tanpa tanda @."],
-  [
-    "TELEGRAM_WEBHOOK_SECRET",
-    "Rahasia webhook acak: 32 sampai 256 karakter. Gunakan huruf, angka, garis bawah, atau tanda hubung. Buat nilai acak dengan openssl rand -hex 32 dan jaga kerahasiaannya.",
-  ],
-  [
-    "TRUSTED_TELEGRAM_USER_ID",
-    "ID pengguna Telegram numerik yang boleh meminta pemulihan di chat pribadi.",
-  ],
 ];
 
 const websiteFeatures = [
@@ -420,18 +389,18 @@ function Docs() {
               <div className="mt-4 space-y-4">
             <Section id="mulai" title="Mulai cepat">
               <p>
-                Operator harus menyelesaikan penyiapan sebelum dua langkah
-                pertama. Anggota chat dapat mulai mencatat setelah bot terhubung.
+                Pasang Rekap dengan installer, lalu hubungkan chat Telegram ke
+                profil. Anggota chat dapat mencatat setelah profil terhubung.
               </p>
               <ol className="grid gap-4 sm:grid-cols-3">
-                <Step number="01" title="Operator membuat profil">
-                  Masuk ke situs web dengan akun pemilik. Buat profil, lalu isi
-                  nama dan ID chat Telegram. ID grup biasanya negatif.
+                <Step number="01" title="Pasang Rekap">
+                  Gunakan installer untuk membuat aplikasi di akun Cloudflare.
+                  Lihat langkah di bagian{" "}
+                  <a className="underline underline-offset-4" href="#setup">Penyiapan</a>.
                 </Step>
-                <Step number="02" title="Operator menghubungkan bot">
-                  Di BotFather, nonaktifkan mode privasi grup. Jika bot sudah ada
-                  di grup, keluarkan lalu tambahkan kembali. Atur webhook dengan
-                  metode <InlineCode>setWebhook</InlineCode> seperti dijelaskan di{" "}
+                <Step number="02" title="Hubungkan chat">
+                  Tambahkan bot ke chat, kirim <InlineCode>/chatid</InlineCode>,
+                  lalu buat profil dengan ID tersebut. Lihat{" "}
                   <a className="underline underline-offset-4" href="#hubungkan-telegram">
                     Hubungkan Telegram
                   </a>
@@ -563,155 +532,57 @@ function Docs() {
 
             <Section id="setup" title="Penyiapan">
               <p>
-                Gunakan langkah ini untuk memasang Rekap di Cloudflare. Perintah
-                migrasi mengubah database jarak jauh. Periksa ID database sebelum
-                menjalankannya.
+                Installer membuat aplikasi dan database di akun Cloudflare yang
+                kamu pilih. Kamu tidak perlu mengunduh kode atau memakai terminal.
               </p>
-
               <h3 className="text-lg font-semibold text-foreground">
                 Siapkan kebutuhan berikut
               </h3>
               <ul className="grid gap-2 sm:grid-cols-2">
-                <CheckItem>Node.js 22.18 atau lebih baru</CheckItem>
-                <CheckItem>Vite+ (vp)</CheckItem>
                 <CheckItem>Akun Cloudflare dengan Workers dan D1</CheckItem>
-                <CheckItem>Bot Telegram dari BotFather</CheckItem>
+                <CheckItem>Subdomain workers.dev di akun Cloudflare</CheckItem>
+                <CheckItem>Bot BotFather yang dapat bergabung ke grup dan belum memiliki webhook</CheckItem>
+                <CheckItem>Nama pengguna dan kata sandi untuk akun pemilik</CheckItem>
               </ul>
-
-              <h3 className="text-lg font-semibold text-foreground">
-                1. Pasang dependensi dan masuk ke Cloudflare
-              </h3>
-              <CodeBlock>{`vp install
-vp exec cf auth login`}</CodeBlock>
-
-              <h3 className="text-lg font-semibold text-foreground">
-                2. Buat database D1
-              </h3>
-              <p>
-                Buat database, lalu simpan UUID hasilnya di{" "}
-                <InlineCode>D1_DATABASE_ID</InlineCode>. UUID di{" "}
-                <InlineCode>cloudflare.config.ts</InlineCode> hanya placeholder.
-                Jangan terapkan aplikasi dengan UUID itu.
-              </p>
-              <CodeBlock>{`vp exec cf d1 create --name rekap
-export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
-              <p>
-                Terapkan migrasi ke database baru. Perintah ini menulis ke
-                database jarak jauh. Periksa ID sebelum menjalankan perintah.
-              </p>
-              <CodeBlock>{`vp exec cf d1 migrations apply "$D1_DATABASE_ID" --dir migrations`}</CodeBlock>
-
-              <h3 className="text-lg font-semibold text-foreground">
-                3. Siapkan rahasia Worker
-              </h3>
-              <p>
-                Simpan nilai ini dalam berkas JSON di luar repositori, atau
-                gunakan pengelolaan rahasia Cloudflare. Berkas JSON berisi objek
-                nama variabel dan nilai string, seperti contoh berikut.
-              </p>
-              <CodeBlock>{`{
-  "APP_URL": "https://YOUR-ORIGIN",
-  "BETTER_AUTH_SECRET": "<rahasia-acak-minimal-32-karakter>",
-  "OWNER_USERNAME": "<nama-pemilik>",
-  "OWNER_PASSWORD": "<kata-sandi-awal>",
-  "TELEGRAM_BOT_TOKEN": "<token-dari-BotFather>",
-  "TELEGRAM_BOT_USERNAME": "<nama-bot-tanpa-at>",
-  "TELEGRAM_WEBHOOK_SECRET": "<rahasia-webhook>",
-  "TRUSTED_TELEGRAM_USER_ID": "<id-pengguna-numerik>"
-}`}</CodeBlock>
-              <p>
-                Ganti setiap nilai contoh. Jangan masukkan berkas ini ke Git.
-                Jika rahasia webhook lama kurang dari 32 karakter, ganti rahasia
-                Worker dan nilai secret_token di Telegram. Pengiriman akan gagal
-                sampai kedua nilai sama.
-              </p>
-              <div className="space-y-3 sm:hidden">
-                {secrets.map(([name, description]) => (
-                  <div
-                    key={name}
-                    className="rounded-xl border border-border bg-secondary/40 p-4"
-                  >
-                    <InlineCode>{name}</InlineCode>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="hidden overflow-hidden rounded-xl border border-border bg-card sm:block">
-                <table className="w-full table-fixed border-collapse text-left text-sm">
-                  <caption className="sr-only">
-                    Variabel rahasia Worker dan nilainya
-                  </caption>
-                  <thead className="bg-secondary/60">
-                    <tr>
-                      <th
-                        scope="col"
-                        className="w-[42%] px-3 py-2.5 text-xs font-medium text-muted-foreground"
-                      >
-                        Nama
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-3 py-2.5 text-xs font-medium text-muted-foreground"
-                      >
-                        Isi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {secrets.map(([name, description]) => (
-                      <tr key={name}>
-                        <td className="break-words border-t border-border px-3 py-3 align-top">
-                          <InlineCode>{name}</InlineCode>
-                        </td>
-                        <td className="border-t border-border px-3 py-3 align-top">
-                          {description}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <h3 className="text-lg font-semibold text-foreground">
-                4. Terapkan aplikasi
-              </h3>
-              <CodeBlock>{`vp exec cf deploy --secrets-file /path/to/secrets.json`}</CodeBlock>
-              <p>
-                Ganti <InlineCode>/path/to/secrets.json</InlineCode> dengan lokasi
-                berkas JSON. Permintaan autentikasi
-                pertama membuat akun pemilik. Setelah itu, perubahan pada{" "}
-                <InlineCode>OWNER_USERNAME</InlineCode> atau{" "}
-                <InlineCode>OWNER_PASSWORD</InlineCode> tidak mengubah akun. Ubah
-                kata sandi di situs web. Gunakan nilai{" "}
-                <InlineCode>BETTER_AUTH_SECRET</InlineCode> yang sama pada setiap
-                penerapan. Gunakan{" "}
-                <InlineCode>D1_DATABASE_ID</InlineCode> yang sama, lalu periksa URL
-                sebelum menghubungkan Telegram.
-              </p>
+              <ol className="space-y-4">
+                <NumberedItem number="1">
+                  Buka <a className="underline underline-offset-4" href="https://install-rekap-musalabs.ptpcp.id">installer Rekap</a>.
+                  Hubungkan akun Cloudflare dan periksa izin sebelum menyetujui.
+                  Izin tersebut dapat mengelola Worker dan database D1 lain di akun.
+                </NumberedItem>
+                <NumberedItem number="2">
+                  Pilih akun Cloudflare. Masukkan token bot, nama pengguna, dan
+                  kata sandi pemilik. Periksa pilihan sebelum melanjutkan.
+                </NumberedItem>
+                <NumberedItem number="3">
+                  Buka bot melalui tautan installer, lalu tekan Start di chat
+                  pribadi. Akun Telegram ini digunakan untuk pemulihan kata sandi.
+                  Kembali ke installer dan periksa verifikasi.
+                </NumberedItem>
+                <NumberedItem number="4">
+                  Mulai pemasangan. Installer membuat database dan Worker serta
+                  mengatur webhook Telegram. Setelah selesai, buka Rekap dan masuk.
+                </NumberedItem>
+              </ol>
+              <Callout title="Batas pemasangan">
+                Installer menyimpan satu pemasangan per akun Cloudflare dan belum
+                dapat menghapus catatan pemasangan yang selesai.
+              </Callout>
             </Section>
 
             <Section id="hubungkan-telegram" title="Hubungkan Telegram">
               <ol className="space-y-4">
                 <NumberedItem number="1">
                   Di BotFather, nonaktifkan mode privasi grup. Jika bot sudah ada
-                  di grup, keluarkan bot lalu tambahkan kembali.
+                  di grup, keluarkan bot lalu tambahkan kembali. Jika belum,
+                  tambahkan bot ke grup.
                 </NumberedItem>
                 <NumberedItem number="2">
-                  Panggil metode <InlineCode>setWebhook</InlineCode> di Telegram
-                  Bot API. Atur <InlineCode>url</InlineCode> ke{" "}
-                  <InlineCode>https://YOUR-ORIGIN/api/telegram</InlineCode> dan{" "}
-                  <InlineCode>secret_token</InlineCode> ke nilai{" "}
-                  <InlineCode>TELEGRAM_WEBHOOK_SECRET</InlineCode>. Telegram harus
-                  dapat mengakses URL melalui HTTPS.
-                </NumberedItem>
-                <NumberedItem number="3">
                   Kirim <InlineCode>/chatid</InlineCode> di chat yang ingin
                   dihubungkan. Bot akan membalas dengan ID chat; ID grup biasanya
                   negatif.
                 </NumberedItem>
-                <NumberedItem number="4">
+                <NumberedItem number="3">
                   Masuk ke situs web sebagai pemilik, lalu buat profil dengan ID
                   chat tersebut.
                 </NumberedItem>
@@ -722,31 +593,22 @@ export D1_DATABASE_ID="<uuid-dari-hasil>"`}</CodeBlock>
               </Callout>
             </Section>
 
-            <Section id="lokal" title="Pengembangan lokal">
+            <Section id="pembaruan" title="Pembaruan dan cadangan">
               <p>
-                Buat berkas <InlineCode>.dev.vars</InlineCode> yang diabaikan Git
-                dengan variabel yang sama. Gunakan{" "}
-                <InlineCode>APP_URL=http://localhost:3000</InlineCode> dan
-                kredensial non-produksi.
+                Cadangkan database D1 sebelum memperbarui. Ekspor cadangan dan
+                simpan di tempat terpisah. Bookmark D1 Time Travel bukan cadangan
+                terpisah; mengembalikan versi Worker tidak memulihkan database.
               </p>
-              <CodeBlock>{`vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations
-vp exec cf dev`}</CodeBlock>
+              <ol className="space-y-4">
+                <NumberedItem number="1">Pilih <strong>Periksa pembaruan</strong> di Rekap dan hubungkan akun Cloudflare yang sama.</NumberedItem>
+                <NumberedItem number="2">Periksa akun dan nama Worker, lalu pilih <strong>Perbarui Rekap</strong> jika tersedia.</NumberedItem>
+                <NumberedItem number="3">Jika pembaruan terhenti, ikuti petunjuk installer dan pilih <strong>Periksa lagi</strong>. Jangan hapus resource yang belum kamu kenali.</NumberedItem>
+              </ol>
               <p>
-                Telegram tidak dapat mengirim webhook langsung ke{" "}
-                <InlineCode>localhost</InlineCode>. Gunakan layanan penerusan
-                HTTPS publik. Jangan gunakan rahasia produksi atau data
-                pengeluaran nyata di pengembangan lokal.
-              </p>
-              <h3 className="text-lg font-semibold text-foreground">
-                Jalankan pemeriksaan
-              </h3>
-              <CodeBlock>{`vp exec tsc --noEmit
-vp test run src/server/auth.test.ts --config src/server/auth/test.config.ts
-vp test run --root src/server telegram.test.ts
-vp exec cf build`}</CodeBlock>
-              <p>
-                Tes memakai adapter SQLite lokal, bukan database D1 di Cloudflare
-                atau Telegram Bot API langsung.
+                Installer memakai Worker dan database yang sama. Migrasi yang
+                belum disetujui untuk pembaruan otomatis memerlukan penanganan
+                manual. Worker migrasi sementara perlu dihapus secara manual
+                setelah identitas dan status route-nya diperiksa di Cloudflare.
               </p>
             </Section>
 
