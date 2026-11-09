@@ -39,6 +39,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
   let migrationAttempts = 0
   let migrationSubdomain = false
   let failMigrationUpload = false
+  let publishedArtifact
   const applied = new Set()
   const databaseId = '11111111-2222-4333-8444-555555555555'
   const accountId = 'a'.repeat(32)
@@ -195,8 +196,8 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           assert.equal(body.assets.jwt, 'asset-completion')
           assert.equal(body.modules.some(module => module.name === body.main_module), true)
           assert.equal(body.bindings.filter(binding => binding.type === 'inherit').every(binding => binding.version_id === 'old-version'), true)
-          assert.equal(body.bindings.some(binding => 'text' in binding), false)
-          newBindings = workerBindings.map(binding => ({ ...binding }))
+          assert.deepEqual(body.bindings.filter(binding => 'text' in binding), [{ name: 'REKAP_ARTIFACT_ID', type: 'plain_text', text: publishedArtifact }])
+          newBindings = [...workerBindings.filter(binding => binding.name !== 'REKAP_ARTIFACT_ID').map(binding => ({ ...binding })), { name: 'REKAP_ARTIFACT_ID', type: 'plain_text', text: publishedArtifact }]
           versionUploads++
           return Response.json({ success: true, result: { id: 'new-version' } })
         }
@@ -233,6 +234,8 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
 
   try {
     assert.equal((await call('/api/session')).status, 401)
+    publishedArtifact = (await (await call('/api/release')).json()).artifactId
+    assert.match(publishedArtifact, /^[a-f0-9]{64}$/)
     assert.equal((await call('/api/oauth/start', { method: 'POST', headers: { origin: 'https://evil.test' } })).status, 403)
     let initial = await start()
     let pendingCookie = initial.headers.get('set-cookie').split(';')[0]
@@ -344,11 +347,13 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
     assert.equal(workerBindings.some(binding => binding.name === 'OWNER_PASSWORD'), false)
     assert.equal(workerBindings.find(binding => binding.name === 'DB').database_id, databaseId)
     assert.equal(workerBindings.find(binding => binding.name === 'TRUSTED_TELEGRAM_USER_ID').text, '123456')
+    assert.equal(workerBindings.find(binding => binding.name === 'REKAP_ARTIFACT_ID').text, publishedArtifact)
     assert.equal(webhookUrl, `${installation.appUrl}/api/telegram`)
     assert.doesNotMatch(JSON.stringify(installation), /correct horse battery|123456:a{35}/)
 
     assert.equal(installation.updateAvailable, false)
     assert.equal((await install('update')).status, 502)
+    workerBindings.find(binding => binding.name === 'REKAP_ARTIFACT_ID').text = '0'.repeat(64)
     await storage.exec("UPDATE job SET value = json_set(value, '$.artifactId', 'older-artifact') WHERE id = 1")
     assert.equal((await (await install('status')).json()).installation.updateAvailable, true)
     assert.equal((await (await install('update')).json()).installation.phase, 'update_prepare')

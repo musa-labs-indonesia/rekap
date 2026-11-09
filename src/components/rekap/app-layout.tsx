@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -88,6 +89,19 @@ function ShellContent() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { setOpenMobile } = useSidebar();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const update = useQuery({
+    queryKey: ["update-status"],
+    queryFn: async () => {
+      const response = await fetch("/api/update");
+      if (!response.ok) throw new Error("Update check failed");
+      const result = (await response.json()) as { status?: string };
+      if (!["available", "current", "unknown"].includes(result.status ?? ""))
+        throw new Error("Invalid update status");
+      return result.status;
+    },
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   useEffect(() => {
     setOpenMobile(false);
@@ -182,14 +196,22 @@ function ShellContent() {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild size="lg">
-                    <a href="https://install-rekap-musalabs.ptpcp.id" target="_blank" rel="noreferrer">
-                      <RefreshCw />
-                      <span>Periksa pembaruan</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {update.data === "available" && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild size="lg">
+                      <a href="https://install-rekap-musalabs.ptpcp.id" target="_blank" rel="noreferrer">
+                        <RefreshCw />
+                        <span>Pembaruan tersedia</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {(update.isError || update.data === "unknown") && (
+                  <SidebarMenuItem className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-destructive" role="status">
+                    <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
+                    Gagal memeriksa pembaruan
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton size="lg" onClick={() => setPasswordOpen(true)}>
                     <KeyRound />

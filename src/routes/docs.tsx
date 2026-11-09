@@ -600,10 +600,15 @@ function Docs() {
                 terpisah; mengembalikan versi Worker tidak memulihkan database.
               </p>
               <ol className="space-y-4">
-                <NumberedItem number="1">Pilih <strong>Periksa pembaruan</strong> di Rekap dan hubungkan akun Cloudflare yang sama.</NumberedItem>
-                <NumberedItem number="2">Periksa akun dan nama Worker, lalu pilih <strong>Perbarui Rekap</strong> jika tersedia.</NumberedItem>
+                <NumberedItem number="1">Saat <strong>Pembaruan tersedia</strong> muncul di Rekap, pilih untuk membuka installer dan hubungkan akun Cloudflare yang sama.</NumberedItem>
+                <NumberedItem number="2">Periksa akun dan nama Worker, lalu pilih <strong>Perbarui Rekap</strong>.</NumberedItem>
                 <NumberedItem number="3">Jika pembaruan terhenti, ikuti petunjuk installer dan pilih <strong>Periksa lagi</strong>. Jangan hapus resource yang belum kamu kenali.</NumberedItem>
               </ol>
+              <p>
+                Jika pemeriksaan pembaruan gagal, buka installer secara
+                langsung untuk memeriksanya. Pemasangan manual tidak memiliki
+                identitas build installer.
+              </p>
               <p>
                 Installer memakai Worker dan database yang sama. Migrasi yang
                 belum disetujui untuk pembaruan otomatis memerlukan penanganan

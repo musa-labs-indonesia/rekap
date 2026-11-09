@@ -17,6 +17,7 @@ export default defineConfig({
       TELEGRAM_WEBHOOK_SECRET: bindings.secret(),
       TRUSTED_TELEGRAM_USER_ID: bindings.secret(),
       APP_URL: bindings.secret(),
+      REKAP_ARTIFACT_ID: bindings.text(''),
     },
   },
 })

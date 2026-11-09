@@ -125,7 +125,7 @@ export async function uploadWorker(account: string, token: string, name: string,
     compatibility_date: artifact.compatibilityDate,
     compatibility_flags: artifact.compatibilityFlags,
     assets: { jwt: completion },
-    bindings: [{ name: 'DB', type: 'd1', database_id: database }, { name: 'ASSETS', type: 'assets' }, ...Object.entries(secrets).map(([key, value]) => ({ name: key, type: 'secret_text', text: value }))],
+    bindings: [{ name: 'DB', type: 'd1', database_id: database }, { name: 'ASSETS', type: 'assets' }, { name: 'REKAP_ARTIFACT_ID', type: 'plain_text', text: artifact.id }, ...Object.entries(secrets).map(([key, value]) => ({ name: key, type: 'secret_text', text: value }))],
     observability: { enabled: true, traces: { enabled: false }, logs: { enabled: false } },
   }
   const form = new FormData()
@@ -152,6 +152,7 @@ export async function updatePreflight(account: string, token: string, name: stri
   const required = ['BETTER_AUTH_SECRET', 'OWNER_USERNAME', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET', 'TRUSTED_TELEGRAM_USER_ID', 'APP_URL']
   if (required.some(name => !bindings.some(binding => binding.name === name && binding.type === 'secret_text'))) throw new Error('Worker secrets are missing')
   if (bindings.some(binding => binding.name === 'OWNER_PASSWORD') || bindings.filter(binding => binding.name === 'ASSETS' && binding.type === 'assets').length !== 1) throw new Error('Worker bindings are not supported')
+  if (bindings.some(binding => binding.name === 'REKAP_ARTIFACT_ID' && binding.type !== 'plain_text')) throw new Error('Worker bindings are not supported')
   const migrations = await request<{ results?: { name?: string }[] }[]>(account, token, `/d1/database/${database}/query`, 'POST', { sql: 'SELECT name FROM d1_migrations ORDER BY id' })
   const applied = migrations[0]?.results?.map(row => row.name)
   const known = artifact.migrations.map(migration => migration.path)
@@ -210,7 +211,7 @@ export async function uploadUpdate(account: string, token: string, name: string,
     compatibility_date: artifact.compatibilityDate,
     compatibility_flags: artifact.compatibilityFlags,
     assets: { jwt: completion },
-    bindings: bindings.map(binding => binding.type === 'assets' ? { name: binding.name, type: 'assets' } : { name: binding.name, type: 'inherit', version_id: version }),
+    bindings: [...bindings.filter(binding => binding.name !== 'REKAP_ARTIFACT_ID').map(binding => binding.type === 'assets' ? { name: binding.name, type: 'assets' } : { name: binding.name, type: 'inherit', version_id: version }), { name: 'REKAP_ARTIFACT_ID', type: 'plain_text', text: artifact.id }],
     modules: artifact.bundle.filter(file => file.path.endsWith('.js')).map(file => ({ name: file.path, content_base64: file.content, content_type: 'application/javascript+module' })),
     annotations: { 'workers/message': `Rekap ${artifact.id}`, 'workers/tag': tag },
   })

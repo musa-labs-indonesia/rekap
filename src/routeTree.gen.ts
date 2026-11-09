@@ -19,6 +19,7 @@ import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
 import { Route as ApiDataRouteImport } from './routes/api/data'
 import { Route as ApiRecoverRouteImport } from './routes/api/recover'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
+import { Route as ApiUpdateRouteImport } from './routes/api/update'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const AppRoute = AppRouteImport.update({
@@ -70,6 +71,11 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
   path: '/api/telegram',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUpdateRoute = ApiUpdateRouteImport.update({
+  id: '/api/update',
+  path: '/api/update',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/update': typeof ApiUpdateRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/update': typeof ApiUpdateRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/api/data': typeof ApiDataRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/update': typeof ApiUpdateRoute
   '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
+    | '/api/update'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
+    | '/api/update'
     | '/'
     | '/api/auth/$'
   id:
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/api/data'
     | '/api/recover'
     | '/api/telegram'
+    | '/api/update'
     | '/_app/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -161,6 +173,7 @@ export interface RootRouteChildren {
   ApiDataRoute: typeof ApiDataRoute
   ApiRecoverRoute: typeof ApiRecoverRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
+  ApiUpdateRoute: typeof ApiUpdateRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -236,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTelegramRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/update': {
+      id: '/api/update'
+      path: '/api/update'
+      fullPath: '/api/update'
+      preLoaderRoute: typeof ApiUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -269,6 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDataRoute: ApiDataRoute,
   ApiRecoverRoute: ApiRecoverRoute,
   ApiTelegramRoute: ApiTelegramRoute,
+  ApiUpdateRoute: ApiUpdateRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

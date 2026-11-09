@@ -63,7 +63,7 @@ If Telegram is unavailable, an operator with D1 write access can issue a recover
 
 The hosted installer at https://install-rekap-musalabs.ptpcp.id requests Cloudflare permissions that can manage other Workers and D1 databases in the account you authorize. Review the consent screen before continuing.
 
-The installer creates a Worker and D1 database with the same generated name. Keep that name and the D1 database ID for backups and removal. To check for an update, select **Periksa pembaruan** in Rekap, connect the same Cloudflare account, and select **Perbarui Rekap** if it is available. Review the account and Worker name before continuing.
+The installer creates a Worker and D1 database with the same generated name. Keep that name and the D1 database ID for backups and removal. When **Pembaruan tersedia** appears in Rekap, select it to open the installer. Connect the same Cloudflare account, review the account and Worker name, and select **Perbarui Rekap**. If Rekap cannot check the update status, open the installer directly. Manually deployed installations do not report an installer build identity.
 
 The updater reuses the existing Worker and database. It does not change the Telegram webhook or write new secret values. Back up the database before updating. The updater records a D1 Time Travel bookmark, but a bookmark is not a replacement for an independently stored backup. It applies only migrations approved for automatic updates; other migrations require a manual update. Rolling back a Worker version does not restore D1 data.
 

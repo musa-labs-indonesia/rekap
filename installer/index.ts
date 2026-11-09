@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import { InstallerJob } from './job'
+import { artifactId } from './deploy'
 
 export { InstallerJob }
 
@@ -199,6 +200,10 @@ export default {
       const url = new URL(request.url)
       if (url.origin !== base) return response({ error: 'Invalid origin' }, 400)
       if (request.method === 'POST' && request.headers.get('origin') !== base) return response({ error: 'Invalid origin' }, 403)
+
+      if (request.method === 'GET' && url.pathname === '/api/release') {
+        return response({ artifactId })
+      }
 
       if (request.method === 'POST' && url.pathname === '/api/oauth/start') {
         const previous = sessionId(request)
