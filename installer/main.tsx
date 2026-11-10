@@ -19,7 +19,7 @@ const phases: Record<string, string> = {
   worker: 'Mengunggah aplikasi', worker_pending: 'Memeriksa aplikasi', domain: 'Mengaktifkan alamat',
   health: 'Memeriksa aplikasi', webhook: 'Menghubungkan Telegram', commands: 'Menyiapkan menu bot',
   update_prepare: 'Memeriksa aplikasi dan database', update_deploy: 'Menyiapkan versi baru',
-  update_migration_domain: 'Mengaktifkan route migrasi', update_migration_apply: 'Memperbarui database', update_migration_cleanup: 'Mematikan route Worker sementara',
+  update_migration_domain: 'Mengaktifkan route migrasi', update_migration_apply: 'Memperbarui database', update_migration_cleanup: 'Membersihkan Worker sementara',
   update_deploy_pending: 'Memeriksa versi aktif', update_health: 'Memeriksa aplikasi',
 }
 const errors: Record<string, string> = {
@@ -72,6 +72,8 @@ function recoveryMessage(installation: Installation): string {
       return `Cloudflare melaporkan route Worker sementara ${worker} aktif, tetapi URL Worker belum merespons setelah 10 detik. Installer tidak menganggap route itu nonaktif. Tunggu, lalu pilih Periksa lagi. Jika URL tetap tidak merespons, pilih Coba Worker baru atau periksa Worker itu secara manual.`
     case 'migration_worker_route_close_unresolved':
       return `Database sudah diperbarui dan Cloudflare melaporkan route Worker sementara ${worker} nonaktif, tetapi URL Worker masih merespons setelah 10 detik. Tunggu, lalu pilih Periksa lagi. Jika URL masih merespons, hapus Worker itu secara manual hanya jika Anda yakin Worker itu milik pemasangan ini.`
+    case 'migration_worker_delete_unresolved':
+      return `Database sudah diperbarui, tetapi installer belum dapat menghapus Worker sementara ${worker}. Pilih Periksa lagi untuk mencoba pembersihan lagi.`
     case 'migration_route_enable_failed':
       return `Cloudflare menolak permintaan untuk mengaktifkan route Worker sementara ${worker}. Periksa izin Workers Scripts di akun ini. Setelah izin diperbaiki, pilih Periksa lagi, atau pilih Coba Worker baru.`
     case 'migration_route_enable_unresolved':
@@ -325,7 +327,7 @@ function App() {
                     {installation.blocked.newVersion && <div className="flex gap-2"><dt>Versi baru</dt><dd className="break-all">{installation.blocked.newVersion}</dd></div>}
                   </dl>}
                   {installation.blocked?.databaseChanged && <p className="text-sm text-muted-foreground">Database sudah berubah. Pembaruan ini tidak dapat dibatalkan.</p>}
-                  {installation.orphanWorkers?.length ? <p className="break-all text-sm text-muted-foreground">Worker sementara yang tidak dihapus: {installation.orphanWorkers.join(', ')}. Route Worker dari percobaan sebelumnya mungkin masih aktif. Matikan route dan hapus manual hanya jika Anda yakin Worker itu milik pemasangan ini.</p> : null}
+                  {installation.orphanWorkers?.length ? <p className="break-all text-sm text-muted-foreground">Worker sementara yang belum dibersihkan: {installation.orphanWorkers.join(', ')}. Pilih Periksa lagi untuk mencoba lagi.</p> : null}
                   {installation.orphanVersionTags?.length ? <p className="break-all text-sm text-muted-foreground">Tag versi yang tidak dipakai ulang: {installation.orphanVersionTags.join(', ')}.</p> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => advance(false)} disabled={busy}>Periksa lagi <ArrowRight data-icon="inline-end" /></Button>
@@ -346,7 +348,7 @@ function App() {
                 <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full bg-secondary"><Check aria-hidden="true" className="size-5" /></span><p className="font-medium">Rekap sudah terpasang.</p></div>
                 <p className="text-sm leading-relaxed text-muted-foreground">Masuk dengan akun pemilik, lalu tambahkan profil dan chat Telegram. Matikan privacy mode di BotFather agar bot dapat membaca catatan di grup.</p>
                 {installation.notice && <p className="text-sm text-muted-foreground">Menu perintah bot yang sudah ada tidak diubah.</p>}
-                {installation.orphanWorkers?.length ? <Alert variant="destructive"><AlertTitle>Worker sementara tidak dihapus</AlertTitle><AlertDescription>Installer tidak menghapus Worker ini. Route Worker migrasi terakhir sudah dimatikan setelah migrasi selesai. Worker dari percobaan sebelumnya mungkin masih memiliki route aktif. Periksa setiap nama di Cloudflare, matikan route jika aktif, lalu hapus manual hanya jika Anda yakin Worker itu milik pemasangan ini: {installation.orphanWorkers.join(', ')}.</AlertDescription></Alert> : null}
+                {installation.orphanWorkers?.length ? <Alert variant="destructive"><AlertTitle>Pembersihan belum selesai</AlertTitle><AlertDescription>Installer belum dapat menghapus Worker sementara: {installation.orphanWorkers.join(', ')}. Pilih Periksa lagi untuk mencoba pembersihan lagi.</AlertDescription></Alert> : null}
                 {installation.orphanVersionTags?.length ? <Alert variant="destructive"><AlertTitle>Versi tidak dipakai</AlertTitle><AlertDescription>Tag versi ini mungkin memiliki versi yang tidak dipakai: {installation.orphanVersionTags.join(', ')}. Jangan hapus versi aktif. Periksa daftar versi Worker di Cloudflare.</AlertDescription></Alert> : null}
                 <Button asChild><a href={installation.appUrl} target="_blank" rel="noreferrer">Buka Rekap <ExternalLink data-icon="inline-end" /></a></Button>
                 {installation.updateAvailable && <><p className="text-sm text-muted-foreground">Versi baru tersedia. Pembaruan tidak mengganti database atau koneksi Telegram.</p><Button variant="outline" onClick={beginUpdate} disabled={busy}>Perbarui Rekap <ArrowRight data-icon="inline-end" /></Button></>}

@@ -236,6 +236,13 @@ export async function workerSubdomainEnabled(account: string, token: string, nam
   return data.result.enabled
 }
 
+export async function deleteWorker(account: string, token: string, name: string): Promise<void> {
+  const result = await fetch(api(account, `/workers/scripts/${name}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+  if (result.status === 404) return
+  const data = await result.json() as { success?: boolean }
+  if (!result.ok || !data.success) throw new Error(`Cloudflare request failed (${result.status})`)
+}
+
 export async function verifyInstallation(account: string, token: string, name: string, database: string): Promise<void> {
   if (await workerDatabase(account, token, name) !== database) throw new Error('Worker database binding does not match')
   const secrets = await request<{ name: string }[]>(account, token, `/workers/scripts/${name}/secrets`)

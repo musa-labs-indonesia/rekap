@@ -39,6 +39,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
   let migrationName
   let migrationBindings = []
   let migrationAttempts = 0
+  let migrationDeletes = 0
   let migrationSubdomain = false
   let failMigrationUpload = false
   let publishedArtifact
@@ -155,7 +156,15 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
             migrationSubdomain = (await request.json()).enabled === true
             return Response.json({ success: true, result: { enabled: migrationSubdomain } })
           }
-          if (suffix === '' && request.method === 'DELETE') assert.fail('Installer must not delete the migration Worker')
+          if (suffix === '' && request.method === 'DELETE') {
+            assert.equal(name, migrationName)
+            migrationDeletes++
+            await migrationRuntime?.dispose()
+            migrationRuntime = undefined
+            migrationName = undefined
+            migrationBindings = []
+            return Response.json({ success: true, result: {} })
+          }
         }
         const workerPath = url.pathname.match(new RegExp(`^/client/v4/accounts/${accountId}/workers/scripts/(rekap-[a-f0-9]{12})(/.*)?$`))
         if (workerPath) {

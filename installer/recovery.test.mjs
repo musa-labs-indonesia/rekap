@@ -186,7 +186,15 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
             if (loseSubdomainReply === action) return Response.json({ success: false }, { status: 503 })
             return Response.json({ success: true, result: { enabled } })
           }
-          if (suffix === '' && request.method === 'DELETE') assert.fail('Installer must not delete the migration Worker')
+          if (suffix === '' && request.method === 'DELETE') {
+            const worker = migrationWorkers.get(name)
+            if (!worker) return Response.json({ success: false }, { status: 404 })
+            migrationDeletes++
+            await worker.runtime.dispose()
+            migrationWorkers.delete(name)
+            migrationSubdomains.set(name, false)
+            return Response.json({ success: true, result: {} })
+          }
         }
         const migrationHost = url.hostname.match(/^(rekap-migrate-[a-f0-9]{16})\.test-subdomain\.workers\.dev$/)
         if (migrationHost) {
@@ -308,18 +316,18 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(migrationSubdomains.get(adoptedWorker), true)
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
-    assert.equal(migrationDeletes, 0)
-    assert.ok(migrationWorkers.has(adoptedWorker))
+    assert.equal(migrationDeletes, 1)
+    assert.equal(migrationWorkers.has(adoptedWorker), false)
     assert.equal(migrationSubdomains.get(adoptedWorker), false)
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true, false])
-    assert.ok((await status()).orphanWorkers.includes(adoptedWorker))
+    assert.equal((await status()).orphanWorkers, undefined)
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_deploy')
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_health')
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'done')
-    assert.ok(stepped.body.installation.orphanWorkers.includes(adoptedWorker))
+    assert.equal(stepped.body.installation.orphanWorkers, undefined)
 
     await resetJob()
     await startUpdate()
@@ -569,7 +577,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     current = await status()
     assert.equal(migrationSubdomains.get(lostDisableWorker), false)
-    assert.ok(current.orphanWorkers.includes(lostDisableWorker))
+    assert.equal(current.orphanWorkers, undefined)
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true, false])
 
     await resetJob()
@@ -631,7 +639,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     assert.equal(migrationSubdomains.get(blockedCleanupWorker), false)
-    assert.ok((await status()).orphanWorkers.includes(blockedCleanupWorker))
+    assert.equal((await status()).orphanWorkers, undefined)
 
     await resetJob()
     await startUpdate()
@@ -745,11 +753,11 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     assert.equal(migrationSubdomains.get(firstWorker), false)
     assert.equal(migrationSubdomains.get(secondWorker), false)
-    assert.equal(migrationDeletes, 0)
+    assert.equal(migrationDeletes, 1)
     assert.equal(await migrationWorkers.get(firstWorker).db.prepare("SELECT name FROM d1_migrations WHERE name = '0003_reporter.sql'").first(), null)
     current = await status()
     assert.ok(current.orphanWorkers.includes(firstWorker))
-    assert.ok(current.orphanWorkers.includes(secondWorker))
+    assert.equal(current.orphanWorkers.includes(secondWorker), false)
 
     await resetJob()
     await startUpdate()
@@ -776,6 +784,10 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.ok(current.orphanWorkers.includes(unverifiedWorker))
     assert.ok(migrationWorkers.has(unverifiedWorker))
     assert.equal(migrationDeletes, 0)
+    current = await status()
+    assert.equal(current.orphanWorkers, undefined)
+    assert.equal(migrationDeletes, 1)
+    assert.equal(migrationWorkers.has(unverifiedWorker), false)
 
     await resetJob()
     applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
@@ -942,7 +954,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     assert.equal(migrationSubdomains.get(firstMigrationWorker), false)
-    assert.ok((await status()).orphanWorkers.includes(firstMigrationWorker))
+    assert.equal((await status()).orphanWorkers, undefined)
     loseMigrationUploadReply = true
     outcome = await install('step')
     assert.equal(outcome.status, 502)
@@ -975,7 +987,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(migrationUploads, 3)
     assert.equal(migrationSubdomains.get(thirdMigrationWorker), false)
     assert.ok(migrationWorkers.has(secondMigrationWorker))
-    assert.equal(migrationDeletes, 0)
+    assert.equal(migrationDeletes, 1)
 
     await resetJob()
     await startUpdate()

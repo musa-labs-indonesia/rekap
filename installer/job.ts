@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { activeVersion, applyMigrations, artifactId, createDatabase, deployUpdate, findDatabase, findVersionByTag, getSubdomain, migrationByPath, migrationWorkerState, setSubdomain, updatePreflight, uploadMigrationWorker, uploadUpdate, uploadWorker, verifyInstallation, workerDatabase, workerSubdomainEnabled } from './deploy'
+import { activeVersion, applyMigrations, artifactId, createDatabase, deleteWorker, deployUpdate, findDatabase, findVersionByTag, getSubdomain, migrationByPath, migrationWorkerState, setSubdomain, updatePreflight, uploadMigrationWorker, uploadUpdate, uploadWorker, verifyInstallation, workerDatabase, workerSubdomainEnabled } from './deploy'
 
 interface JobEnv { SESSION_KEY: string }
 type Input = { botToken: string; username: string; password: string }
@@ -154,9 +154,45 @@ export class InstallerJob extends DurableObject<JobEnv> {
     }
   }
 
-  status() {
+  async status(account: string, token: string) {
     const job = this.read()
-    return job ? view(job) : null
+    if (!job) return null
+    if (job.phase === 'done' && job.migrationOrphans?.length) {
+      try {
+        await this.cleanupOrphans(account, token, job)
+      } catch {}
+    }
+    return view(job)
+  }
+
+  private async cleanupOrphans(account: string, token: string, job: Job): Promise<void> {
+    const remaining: string[] = []
+    for (const name of job.migrationOrphans ?? []) {
+      if (!/^rekap-migrate-[a-f0-9]{16}$/.test(name) || name === job.migrationWorker) {
+        remaining.push(name)
+        continue
+      }
+      const database = await workerDatabase(account, token, name)
+      if (database === null) continue
+      if (database !== job.database) {
+        remaining.push(name)
+        continue
+      }
+      const route = await workerSubdomainEnabled(account, token, name)
+      if (route !== false) {
+        remaining.push(name)
+        continue
+      }
+      try {
+        await deleteWorker(account, token, name)
+      } catch {
+        remaining.push(name)
+        continue
+      }
+      if (await workerDatabase(account, token, name) !== null) remaining.push(name)
+    }
+    job.migrationOrphans = remaining.length ? remaining : undefined
+    this.write(job)
   }
 
   startUpdate(account: string) {
@@ -397,10 +433,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
           if (state === 'owned') {
             const route = await workerSubdomainEnabled(account, token, job.migrationWorker)
             if (route === null) this.block(job, job.phase, 'migration_worker_route_unknown')
-            if (!route) {
-              if (!(await waitForRoute(`https://${job.migrationWorker}.${job.subdomain}.workers.dev`, false))) this.block(job, job.phase, 'migration_worker_route_close_unresolved')
-              job.migrationOrphans = remember(job.migrationOrphans, job.migrationWorker)
-            } else {
+            if (route) {
               state = await migrationWorkerState(account, token, job.migrationWorker, job.database, await this.ownership(account, job))
               if (state === 'unverified') this.block(job, job.phase, 'migration_worker_cleanup_unverified')
               if (state === 'owned') {
@@ -414,11 +447,26 @@ export class InstallerJob extends DurableObject<JobEnv> {
                 const enabled = accepted ?? await workerSubdomainEnabled(account, token, job.migrationWorker)
                 if (enabled === null) this.block(job, job.phase, 'migration_worker_route_unknown')
                 if (enabled) throw new Error('Worker subdomain route is still active')
-                if (!(await waitForRoute(`https://${job.migrationWorker}.${job.subdomain}.workers.dev`, false))) this.block(job, job.phase, 'migration_worker_route_close_unresolved')
+              }
+            }
+            if (!(await waitForRoute(`https://${job.migrationWorker}.${job.subdomain}.workers.dev`, false))) this.block(job, job.phase, 'migration_worker_route_close_unresolved')
+            state = await migrationWorkerState(account, token, job.migrationWorker, job.database, await this.ownership(account, job))
+            if (state === 'unverified') this.block(job, job.phase, 'migration_worker_cleanup_unverified')
+            if (state === 'owned') {
+              try {
+                await deleteWorker(account, token, job.migrationWorker)
+              } catch (error) {
+                if (refused(httpStatus(error))) this.block(job, job.phase, 'migration_worker_delete_unresolved')
+                throw error
+              }
+              state = await migrationWorkerState(account, token, job.migrationWorker, job.database, await this.ownership(account, job))
+              if (state !== 'missing') {
                 job.migrationOrphans = remember(job.migrationOrphans, job.migrationWorker)
+                this.block(job, job.phase, 'migration_worker_delete_unresolved')
               }
             }
           }
+          job.migrationOrphans = job.migrationOrphans?.filter(name => name !== job.migrationWorker)
           job.migrationWorker = undefined
           job.migrationName = undefined
           job.migrationUploadUncertain = undefined
