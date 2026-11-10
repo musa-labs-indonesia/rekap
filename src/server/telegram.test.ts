@@ -27,7 +27,7 @@ function database(db: DatabaseSync): D1Database {
   } as unknown as D1Database
 }
 
-function request(text: string, options: { chat?: number; type?: string; from?: number; id?: number; date?: number; secret?: string } = {}) {
+function request(text: string, options: { chat?: number; type?: string; from?: number; id?: number; date?: number; secret?: string; firstName?: string; lastName?: string; username?: string } = {}) {
   return new Request('https://app.example/telegram', {
     method: 'POST',
     headers: { 'X-Telegram-Bot-Api-Secret-Token': options.secret ?? webhookSecret },
@@ -35,7 +35,7 @@ function request(text: string, options: { chat?: number; type?: string; from?: n
       message_id: options.id ?? 1,
       date: options.date ?? Math.floor(Date.now() / 1000),
       chat: { id: options.chat ?? -100, type: options.type ?? 'group' },
-      from: { id: options.from ?? 77 },
+      from: { id: options.from ?? 77, first_name: options.firstName ?? 'Budi', last_name: options.lastName, username: options.username },
       text,
     } }),
   })
@@ -52,6 +52,7 @@ beforeEach(() => {
   Object.defineProperty(crypto.subtle, 'timingSafeEqual', { configurable: true, value: (a: ArrayBuffer, b: ArrayBuffer) => timingSafeEqual(Buffer.from(a), Buffer.from(b)) })
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(readFileSync('migrations/0001_spending.sql', 'utf8'))
+  sqlite.exec(readFileSync('migrations/0003_reporter.sql', 'utf8'))
   sqlite.exec("INSERT INTO profiles VALUES ('p', 'Rumah', '-100', 0, 1), ('archived', 'Arsip', '-200', 1, 1), ('other', 'Lain', '-300', 0, 1)")
   sqlite.exec("INSERT INTO categories VALUES ('c', 'p', 'Makan', 'makan', 0), ('arch-c', 'p', 'Lama', 'lama', 1), ('other-c', 'other', 'Lain', 'lain', 0)")
   env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: webhookSecret, TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example' }
@@ -117,11 +118,11 @@ describe('Telegram webhook', () => {
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -999 }), env)
     await handleTelegramWebhook(request('catat, 20000, nasi, makan', { chat: -200 }), env)
     expect(replies.every((r) => r.text.includes('belum terhubung'))).toBe(true)
-    await handleTelegramWebhook(request('CaTaT, 20.000, nasi, mAkAn', { from: 99 }), env)
+    await handleTelegramWebhook(request('CaTaT, 20.000, nasi, mAkAn', { from: 99, firstName: 'Sari', lastName: 'Dewi', username: 'sari_dewi' }), env)
     expect(replies.at(-1)?.text).toContain('Tercatat: Rp20.000 · Makan · nasi, 2 Mar.')
     expect(replies.at(-1)?.text).toContain('Total Maret: Rp20.000 dari 1 transaksi')
     expect(replies.at(-1)?.reply_parameters.message_id).toBe(1)
-    expect(sqlite.prepare('SELECT amount, occurred_at, telegram_chat_id FROM expenses').get()).toMatchObject({ amount: 20000, occurred_at: Date.now(), telegram_chat_id: '-100' })
+    expect(sqlite.prepare('SELECT amount, occurred_at, telegram_chat_id, reporter_id, reporter_name, reporter_username FROM expenses').get()).toMatchObject({ amount: 20000, occurred_at: Date.now(), telegram_chat_id: '-100', reporter_id: '99', reporter_name: 'Sari Dewi', reporter_username: 'sari_dewi' })
   })
 
   it('validates amounts, fields, and active profile-specific categories', async () => {

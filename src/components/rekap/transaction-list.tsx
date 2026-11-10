@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Expense } from "./api";
-import { displayDate, rupiah } from "./utils";
+import { displayDate, reporterLabel, rupiah } from "./utils";
 
 function RowActions({
   expense,
@@ -101,6 +101,7 @@ export function TransactionList({
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-5">Item</TableHead>
               <TableHead>Kategori</TableHead>
+              <TableHead>Pelapor</TableHead>
               <TableHead>Tanggal</TableHead>
               <TableHead className="text-right">Jumlah</TableHead>
               {hasActions ? (
@@ -117,6 +118,14 @@ export function TransactionList({
                   {expense.item}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{expense.category}</TableCell>
+                <TableCell
+                  className="text-muted-foreground"
+                  title={
+                    expense.reporter_username ? `@${expense.reporter_username}` : undefined
+                  }
+                >
+                  {reporterLabel(expense) || "—"}
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {displayDate(expense.occurred_at)}
                 </TableCell>
@@ -150,6 +159,7 @@ export function TransactionList({
               <p className="truncate font-medium">{expense.item}</p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{expense.category}</span>
+                {reporterLabel(expense) ? <span>{reporterLabel(expense)}</span> : null}
                 <span>{displayDate(expense.occurred_at)}</span>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowRight, Check, ExternalLink, LockKeyhole, WalletCards } from 'lucide-react'
+import { GithubIcon } from '@/components/rekap/github-icon'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -255,7 +256,10 @@ function App() {
             <span className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground"><WalletCards aria-hidden="true" className="size-5" /></span>
             <div className="flex flex-col leading-tight"><span className="text-lg font-semibold">Rekap</span><span className="text-xs text-muted-foreground">Pemasangan</span></div>
           </div>
-          {accounts && <Button variant="ghost" onClick={disconnect} disabled={busy}>Putuskan koneksi</Button>}
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="icon"><a href="https://github.com/musa-labs-indonesia/rekap" target="_blank" rel="noreferrer" aria-label="Rekap di GitHub"><GithubIcon /></a></Button>
+            {accounts && <Button variant="ghost" size="sm" onClick={disconnect} disabled={busy}>Putuskan koneksi</Button>}
+          </div>
         </div>
       </header>
       <main className="mx-auto grid max-w-5xl gap-10 px-5 py-10 sm:px-8 sm:py-16 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] md:gap-16">

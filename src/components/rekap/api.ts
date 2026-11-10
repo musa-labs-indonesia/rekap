@@ -7,6 +7,9 @@ export type Expense = {
   occurred_at: number;
   category: string;
   category_id: string;
+  reporter_id: string | null;
+  reporter_name: string | null;
+  reporter_username: string | null;
 };
 export type Data = { profiles: Profile[]; categories: Category[]; expenses: Expense[] };
 

@@ -24,7 +24,13 @@ type Message = {
   date: number;
   text?: string;
   chat: { id: number; type: string };
-  from?: { id: number; is_bot?: boolean };
+  from?: {
+    id: number;
+    is_bot?: boolean;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+  };
 };
 
 type Period = "daily" | "weekly" | "monthly";
@@ -281,10 +287,17 @@ export async function handleTelegramWebhook(
       const now = Date.now();
       const occurred =
         Number.isSafeInteger(message.date) && message.date > 0 ? message.date * 1000 : now;
+      const reporter = message.from;
+      const reporterName =
+        [reporter?.first_name, reporter?.last_name]
+          .map((part) => part?.trim())
+          .filter(Boolean)
+          .join(" ") || null;
+      const reporterUsername = reporter?.username?.trim() || null;
       let result;
       try {
         result = await env.DB.prepare(
-          "INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, telegram_chat_id, telegram_message_id, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM telegram_recorded_messages WHERE chat_id = ? AND message_id = ?) ON CONFLICT(telegram_chat_id, telegram_message_id) DO NOTHING",
+          "INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, telegram_chat_id, telegram_message_id, reporter_id, reporter_name, reporter_username, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM telegram_recorded_messages WHERE chat_id = ? AND message_id = ?) ON CONFLICT(telegram_chat_id, telegram_message_id) DO NOTHING",
         )
           .bind(
             crypto.randomUUID(),
@@ -295,6 +308,9 @@ export async function handleTelegramWebhook(
             occurred,
             String(message.chat.id),
             message.message_id,
+            reporter ? String(reporter.id) : null,
+            reporterName,
+            reporterUsername,
             now,
             String(message.chat.id),
             message.message_id,

@@ -8,6 +8,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
   const script = source
     .replace(/("path": "0001_spending\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
     .replace(/("path": "0002_auth\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
+    .replace(/("path": "0003_reporter\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
   assert.notEqual(script, source)
   const accountId = 'b'.repeat(32)
   const databaseId = '11111111-2222-4333-8444-555555555555'
@@ -20,7 +21,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     { name: 'ASSETS', type: 'assets' },
     ...required.map(name => ({ name, type: 'secret_text', text: 'value' })),
   ]
-  let applied = ['0001_spending.sql']
+  let applied = ['0001_spending.sql', '0002_auth.sql']
   let deployedVersion = 'old-version'
   let versions = []
   const migrationWorkers = new Map()
@@ -56,6 +57,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     const runtime = new Miniflare({ workers: [{ config: { name: 'migration', compatibilityDate: '2026-11-08', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: code } } }, env: { DB: { type: 'd1', id: 'migration-test-db' } } } }] })
     const db = await runtime.getD1Database('DB')
     const statements = [db.prepare('CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT UNIQUE)')]
+    if (applied.includes('0001_spending.sql')) statements.push(db.prepare('CREATE TABLE expenses (id TEXT PRIMARY KEY)'))
     for (const name of applied) statements.push(db.prepare('INSERT INTO d1_migrations (name) VALUES (?)').bind(name))
     await db.batch(statements)
     const target = code.match(/const name = "([^"]+)";/)?.[1]
@@ -265,7 +267,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     skipDeployment = false
     deployedVersion = 'old-version'
     versions = [{ id: 'old-version', annotations: {} }]
-    applied = ['0001_spending.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql']
     const job = { phase: 'done', name: workerName, bot: 'rekap_bot', nonce: 'nonce', expiresAt: Date.now() + 3600000, secrets: '', subdomain: 'test-subdomain', artifactId: 'older-artifact', database: databaseId }
     await jobStorage.exec('INSERT OR REPLACE INTO job (id, value, lock_id, lock_until) VALUES (1, ?, NULL, 0)', JSON.stringify(job))
   }
@@ -302,7 +304,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_migration_cleanup')
-    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql'])
     assert.equal(migrationSubdomains.get(adoptedWorker), true)
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
@@ -337,7 +339,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_migration_cleanup')
-    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql'])
 
     await resetJob()
     await startUpdate()
@@ -446,7 +448,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(current.blocked.canCancel, true)
     assert.equal(current.blocked.canRetry, 'migration')
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true])
-    assert.deepEqual(applied, ['0001_spending.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
     releaseDeferredSubdomain(true)
     assert.equal(migrationSubdomains.get(lateWorker), true)
     stepped = await step()
@@ -454,7 +456,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_migration_cleanup')
-    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql'])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     assert.equal(migrationSubdomains.get(lateWorker), false)
@@ -484,7 +486,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.deepEqual(subdomainWrites.map(item => item.enabled), [true])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_migration_cleanup')
-    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql'])
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_prepare')
     assert.equal(migrationSubdomains.get(lostEnableWorker), false)
@@ -517,7 +519,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     migrationSubdomains.set(disabledAtApplyWorker, true)
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_migration_cleanup')
-    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql'])
+    assert.deepEqual(applied, ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql'])
 
     await resetJob()
     await startUpdate()
@@ -744,7 +746,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(migrationSubdomains.get(firstWorker), false)
     assert.equal(migrationSubdomains.get(secondWorker), false)
     assert.equal(migrationDeletes, 0)
-    assert.equal(await migrationWorkers.get(firstWorker).db.prepare("SELECT name FROM d1_migrations WHERE name = '0002_auth.sql'").first(), null)
+    assert.equal(await migrationWorkers.get(firstWorker).db.prepare("SELECT name FROM d1_migrations WHERE name = '0003_reporter.sql'").first(), null)
     current = await status()
     assert.ok(current.orphanWorkers.includes(firstWorker))
     assert.ok(current.orphanWorkers.includes(secondWorker))
@@ -776,7 +778,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(migrationDeletes, 0)
 
     await resetJob()
-    applied = ['0001_spending.sql', '0002_auth.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
     await startUpdate()
     loseVersionUploadReply = true
     outcome = await install('step')
@@ -798,7 +800,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal(stepped.body.installation.updateAvailable, false)
 
     await resetJob()
-    applied = ['0001_spending.sql', '0002_auth.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
     await startUpdate()
     deferVersionUpload = true
     outcome = await install('step')
@@ -849,7 +851,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.ok(stepped.body.installation.orphanVersionTags.includes(firstTag))
 
     await resetJob()
-    applied = ['0001_spending.sql', '0002_auth.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
     await startUpdate()
     loseVersionUploadReply = true
     outcome = await install('step')
@@ -874,7 +876,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.ok(stepped.body.installation.orphanVersionTags.includes(ambiguousTag))
 
     await resetJob()
-    applied = ['0001_spending.sql', '0002_auth.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
     await startUpdate()
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_deploy')
@@ -906,7 +908,7 @@ test('Installer update recovery uses new names and tags after uncertain uploads'
     assert.equal((await outcome.json()).installation.phase, 'done')
 
     await resetJob()
-    applied = ['0001_spending.sql', '0002_auth.sql']
+    applied = ['0001_spending.sql', '0002_auth.sql', '0003_reporter.sql']
     await startUpdate()
     stepped = await step()
     assert.equal(stepped.body.installation.phase, 'update_deploy')

@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import { GithubIcon } from "@/components/rekap/github-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -106,7 +107,7 @@ const websiteFeatures = [
   {
     title: "Transaksi",
     description:
-      "Tambah, ubah, dan hapus pengeluaran. Tanggal historis didukung.",
+      "Tambah, ubah, dan hapus pengeluaran. Tanggal historis didukung. Pelapor Telegram tampil di daftar.",
   },
   {
     title: "Filter",
@@ -115,11 +116,11 @@ const websiteFeatures = [
   },
   {
     title: "Ekspor CSV",
-    description: "Unduh transaksi yang sedang tampil sebagai berkas CSV.",
+    description: "Unduh transaksi yang sedang tampil sebagai berkas CSV, termasuk pelapor.",
   },
   {
     title: "Impor CSV",
-    description: "Periksa dan impor hingga 500 transaksi ke profil aktif menggunakan format ekspor Rekap.",
+    description: "Periksa dan impor hingga 500 transaksi ke profil aktif menggunakan format ekspor Rekap. Kolom Pelapor diabaikan.",
   },
   {
     title: "Kategori",
@@ -263,6 +264,11 @@ function Docs() {
                   />
                   Publik
                 </Badge>
+                <Button asChild size="icon" variant="ghost">
+                  <a href="https://github.com/musa-labs-indonesia/rekap" target="_blank" rel="noreferrer" aria-label="Rekap di GitHub">
+                    <GithubIcon />
+                  </a>
+                </Button>
                 <Button
                   asChild
                   size="sm"
@@ -499,6 +505,11 @@ function Docs() {
                 <ListItem>
                   Laporan memakai periode Jakarta saat ini. Laporan berisi total,
                   jumlah transaksi, dan tiga transaksi terbaru.
+                </ListItem>
+                <ListItem>
+                  Setiap <InlineCode>catat</InlineCode> menyimpan nama, nama
+                  pengguna, dan ID Telegram pencatat. Nama tampil di kolom
+                  Pelapor dan ekspor CSV. Transaksi lama tidak memiliki pelapor.
                 </ListItem>
                 <ListItem>
                   Pesan Telegram yang sama tidak dicatat dua kali.

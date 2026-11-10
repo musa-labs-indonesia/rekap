@@ -24,6 +24,13 @@ export const chartClasses = [
 export const rupiah = (amount: number) =>
   `Rp${new Intl.NumberFormat("id-ID").format(amount)}`;
 
+export const reporterLabel = (
+  expense: Pick<Expense, "reporter_id" | "reporter_name" | "reporter_username">,
+) =>
+  expense.reporter_name ||
+  (expense.reporter_username ? `@${expense.reporter_username}` : expense.reporter_id) ||
+  "";
+
 export const compactRupiah = (amount: number) =>
   `Rp${new Intl.NumberFormat("id-ID", {
     notation: "compact",
@@ -132,12 +139,13 @@ export function exportExpensesCsv(expenses: Expense[]) {
       .replace(/^[=+\-@\t\r]/, "'$&")
       .replaceAll('"', '""')}"`;
   const rows = [
-    ["Tanggal", "Item", "Kategori", "Jumlah"],
+    ["Tanggal", "Item", "Kategori", "Jumlah", "Pelapor"],
     ...expenses.map((expense) => [
       dateString(expense.occurred_at),
       expense.item,
       expense.category,
       expense.amount,
+      reporterLabel(expense),
     ]),
   ];
   const blob = new Blob(["\ufeff" + rows.map((row) => row.map(safe).join(",")).join("\r\n")], {

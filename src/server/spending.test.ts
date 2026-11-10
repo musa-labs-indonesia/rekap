@@ -31,6 +31,7 @@ class TestD1 {
   constructor() {
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(readFileSync(new URL("../../migrations/0001_spending.sql", import.meta.url), "utf8"));
+    this.db.exec(readFileSync(new URL("../../migrations/0003_reporter.sql", import.meta.url), "utf8"));
   }
   prepare(sql: string) { return new Statement(this.db, sql); }
   async batch(statements: Statement[]) {

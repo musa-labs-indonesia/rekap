@@ -19,11 +19,21 @@ function parseFile(source: string): ImportRow[] {
   const parsed = Papa.parse<string[]>(source, { delimiter: ",", skipEmptyLines: "greedy" });
   if (parsed.errors.length) throw new Error("CSV tidak valid. Periksa tanda kutip dan pemisah koma.");
   const [header, ...rows] = parsed.data;
-  if (!header || header.length !== 4 || header.some((value, index) => value.trim().toLowerCase() !== ["tanggal", "item", "kategori", "jumlah"][index]))
-    throw new Error("Kolom harus Tanggal, Item, Kategori, Jumlah, sesuai ekspor Rekap.");
+  const columns = header?.map((value) => value.trim().toLowerCase()) ?? [];
+  const hasReporter = columns.length === 5 && columns[4] === "pelapor";
+  if (
+    columns.length !== (hasReporter ? 5 : 4) ||
+    ["tanggal", "item", "kategori", "jumlah"].some(
+      (value, index) => columns[index] !== value,
+    )
+  )
+    throw new Error(
+      "Kolom harus Tanggal, Item, Kategori, Jumlah, dengan Pelapor opsional, sesuai ekspor Rekap.",
+    );
   if (!rows.length || rows.length > 500) throw new Error("CSV harus berisi 1–500 transaksi.");
   return rows.map((row, index) => {
-    if (row.length !== 4) throw new Error(`Baris ${index + 2} harus memiliki empat kolom.`);
+    if (row.length !== columns.length)
+      throw new Error(`Baris ${index + 2} harus memiliki ${columns.length} kolom.`);
     const [date, item, category, amountText] = row.map((value) => value.trim());
     const amount = Number(amountText);
     const time = Date.parse(`${date}T12:00:00+07:00`);
@@ -97,7 +107,7 @@ export function ImportDialog({ open, onOpenChange, profileId, categories, onUnau
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Impor transaksi</DialogTitle>
-          <DialogDescription>Impor ke profil aktif. Gunakan CSV ekspor Rekap dengan tanggal YYYY-MM-DD dan jumlah rupiah bulat.</DialogDescription>
+          <DialogDescription>Impor ke profil aktif. Gunakan CSV ekspor Rekap dengan tanggal YYYY-MM-DD dan jumlah rupiah bulat. Kolom Pelapor diabaikan.</DialogDescription>
         </DialogHeader>
         <Field>
           <FieldLabel htmlFor="import-file">Berkas CSV</FieldLabel>
