@@ -412,6 +412,16 @@ export async function linkChannel(
     .first<{ profile_id: string }>();
   if (existing && existing.profile_id !== profileId)
     throw new Error("Kanal ini sudah terhubung ke profil lain.");
+  const sameType = await db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM profile_channels pc JOIN integrations i ON i.id = pc.integration_id WHERE pc.profile_id = ? AND i.type = ? AND pc.active = 1 AND pc.external_id <> ?",
+    )
+    .bind(profileId, integration.type, externalId)
+    .first<{ count: number }>();
+  if ((sameType?.count ?? 0) > 0)
+    throw new Error(
+      `Profil ini sudah punya kanal ${integration.type === "telegram" ? "Telegram" : "Discord"}. Lepas kanal lama dulu.`,
+    );
   await db
     .prepare(
       "INSERT INTO profile_channels (id, profile_id, integration_id, external_id, external_name, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?) ON CONFLICT(integration_id, external_id) DO UPDATE SET profile_id = excluded.profile_id, external_name = excluded.external_name, active = 1",
@@ -441,6 +451,14 @@ export async function createLinkCode(
     .first<{ archived: number }>();
   if (!profile) throw new Error("Profil tidak ditemukan.");
   if (profile.archived) throw new Error("Profil ini sudah diarsipkan.");
+  const sameType = await db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM profile_channels pc JOIN integrations i ON i.id = pc.integration_id WHERE pc.profile_id = ? AND i.type = 'telegram' AND pc.active = 1",
+    )
+    .bind(profileId)
+    .first<{ count: number }>();
+  if ((sameType?.count ?? 0) > 0)
+    throw new Error("Profil ini sudah punya kanal Telegram. Lepas kanal lama dulu.");
   const code = randomCode();
   const expiresAt = now() + 10 * 60 * 1000;
   const hash = await sha256Hex(code);

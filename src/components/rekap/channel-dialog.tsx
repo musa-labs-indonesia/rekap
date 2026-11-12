@@ -52,6 +52,8 @@ export function ChannelDialog({
   const [discordChannels, setDiscordChannels] = useState<DiscordChannel[]>([]);
   const [discordChannelId, setDiscordChannelId] = useState("");
   const linked = profile ? channels.filter((channel) => channel.profile_id === profile.id) : [];
+  const telegramLinked = linked.some((channel) => channel.type === "telegram" && channel.active);
+  const discordLinked = linked.some((channel) => channel.type === "discord" && channel.active);
   const telegram = integrations.find((item) => item.type === "telegram");
   const discord = integrations.find((item) => item.type === "discord");
   const mutation = useMutation({
@@ -196,20 +198,26 @@ export function ChannelDialog({
               </Badge>
             </div>
             {telegram?.status === "connected" ? (
-              <>
+              telegramLinked ? (
                 <p className="text-xs text-muted-foreground">
-                  Buat kode, lalu kirim <span className="font-medium">/connect KODE</span> di grup.
+                  Chat Telegram sudah terhubung. Lepas kanal di atas untuk mengganti.
                 </p>
-                {code ? (
-                  <p className="rounded-lg bg-muted px-3 py-2 text-center font-mono text-lg font-semibold tracking-widest">
-                    {code}
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Buat kode, lalu kirim <span className="font-medium">/connect KODE</span> di grup.
                   </p>
-                ) : null}
-                <Button size="sm" variant="outline" onClick={createCode} disabled={mutation.isPending}>
-                  <Link2 />
-                  Buat kode
-                </Button>
-              </>
+                  {code ? (
+                    <p className="rounded-lg bg-muted px-3 py-2 text-center font-mono text-lg font-semibold tracking-widest">
+                      {code}
+                    </p>
+                  ) : null}
+                  <Button size="sm" variant="outline" onClick={createCode} disabled={mutation.isPending}>
+                    <Link2 />
+                    Buat kode
+                  </Button>
+                </>
+              )
             ) : (
               <p className="text-xs text-muted-foreground">
                 Hubungkan bot Telegram dulu di halaman Integrasi.
@@ -225,43 +233,49 @@ export function ChannelDialog({
               </Badge>
             </div>
             {discord?.status === "connected" ? (
-              <>
-                <Button size="sm" variant="outline" onClick={loadDiscordChannels} disabled={mutation.isPending}>
-                  <Cable />
-                  Muat channel
-                </Button>
-                {discordChannels.length ? (
-                  <FieldGroup>
-                    <Field>
-                      <FieldLabel htmlFor="discord-channel">Channel Discord</FieldLabel>
-                      <Select value={discordChannelId} onValueChange={setDiscordChannelId}>
-                        <SelectTrigger id="discord-channel" className="w-full">
-                          <SelectValue placeholder="Pilih channel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {discordChannels.map((channel) => (
-                              <SelectItem
-                                key={`${channel.guildId}-${channel.channelId}`}
-                                value={channel.channelId}
-                              >
-                                {channel.guildName} / #{channel.channelName}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>Bot harus sudah masuk ke server Discord.</FieldDescription>
-                    </Field>
-                  </FieldGroup>
-                ) : null}
-                {discordChannels.length ? (
-                  <Button size="sm" onClick={linkDiscordChannel} disabled={mutation.isPending || !discordChannelId}>
-                    <Link2 />
-                    Tautkan channel
+              discordLinked ? (
+                <p className="text-xs text-muted-foreground">
+                  Channel Discord sudah terhubung. Lepas kanal di atas untuk mengganti.
+                </p>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={loadDiscordChannels} disabled={mutation.isPending}>
+                    <Cable />
+                    Muat channel
                   </Button>
-                ) : null}
-              </>
+                  {discordChannels.length ? (
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="discord-channel">Channel Discord</FieldLabel>
+                        <Select value={discordChannelId} onValueChange={setDiscordChannelId}>
+                          <SelectTrigger id="discord-channel" className="w-full">
+                            <SelectValue placeholder="Pilih channel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {discordChannels.map((channel) => (
+                                <SelectItem
+                                  key={`${channel.guildId}-${channel.channelId}`}
+                                  value={channel.channelId}
+                                >
+                                  {channel.guildName} / #{channel.channelName}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>Bot harus sudah masuk ke server Discord.</FieldDescription>
+                      </Field>
+                    </FieldGroup>
+                  ) : null}
+                  {discordChannels.length ? (
+                    <Button size="sm" onClick={linkDiscordChannel} disabled={mutation.isPending || !discordChannelId}>
+                      <Link2 />
+                      Tautkan channel
+                    </Button>
+                  ) : null}
+                </>
+              )
             ) : (
               <p className="text-xs text-muted-foreground">
                 Hubungkan bot Discord dulu di halaman Integrasi.

@@ -10,6 +10,7 @@ import {
   connectTelegram,
   createLinkCode,
   disconnectTelegram,
+  linkChannel,
   type IntegrationEnv,
 } from "./integrations";
 import { handleTelegramWebhook } from "./telegram";
@@ -252,6 +253,23 @@ describe("Channels", () => {
       sqlite.prepare("SELECT profile_id FROM profile_channels WHERE external_id = '-777'").get(),
     ).toMatchObject({ profile_id: "p2" });
   });
+
+  it("rejects a second Telegram channel for one profile", async () => {
+    sqlite
+      .prepare(
+        "INSERT INTO profile_channels (id, profile_id, integration_id, external_id, external_name, active, created_at) VALUES ('tg-p1', 'p1', 'telegram', '-100', 'Telegram', 1, 1)",
+      )
+      .run();
+    await expect(createLinkCode(env.DB, "p1", "telegram")).rejects.toThrow(
+      "sudah punya kanal Telegram",
+    );
+    await expect(linkChannel(env.DB, "p1", "telegram", "-888", "Grup Tiga")).rejects.toThrow(
+      "sudah punya kanal Telegram",
+    );
+    expect(
+      sqlite.prepare("SELECT COUNT(*) AS count FROM profile_channels WHERE profile_id = 'p1'").get(),
+    ).toMatchObject({ count: 1 });
+  });
 });
 
 describe("Discord interactions", () => {
@@ -453,6 +471,13 @@ describe("Discord interactions", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM expenses").get()?.n).toBe(0);
   });
 
+
+  it("rejects a second Discord channel for one profile", async () => {
+    await configureDiscord();
+    await expect(linkChannel(env.DB, "p2", "discord", "d-other", "Server / #lain")).rejects.toThrow(
+      "sudah punya kanal Discord",
+    );
+  });
 
   it("reports all channels on the same profile", async () => {
     await configureDiscord();

@@ -147,7 +147,7 @@ const websiteFeatures = [
   {
     title: "Profil",
     description:
-      "Buat, arsipkan, dan pulihkan profil. Satu profil dapat terhubung ke beberapa kanal.",
+      "Buat, arsipkan, dan pulihkan profil. Satu profil dapat terhubung ke satu chat Telegram dan satu channel Discord.",
   },
   {
     title: "Integrasi",
@@ -442,8 +442,8 @@ function Docs() {
                   description="Tidak ada pendaftaran mandiri."
                 />
                 <Fact
-                  title="Banyak kanal per profil"
-                  description="Telegram, Discord, atau keduanya."
+                  title="Satu kanal per jenis"
+                  description="Satu Telegram dan satu Discord per profil."
                 />
                 <Fact
                   title="Empat kategori awal"
@@ -794,7 +794,8 @@ function Docs() {
               <p>
                 Kanal menghubungkan chat Telegram atau channel Discord ke satu
                 profil. Satu kanal hanya boleh terhubung ke satu profil. Satu
-                profil boleh memiliki beberapa kanal dari Telegram dan Discord.
+                profil hanya boleh memiliki satu kanal Telegram dan satu channel
+                Discord. Lepas kanal lama dulu untuk mengganti.
               </p>
               <ul className="space-y-3">
                 <ListItem>
@@ -880,7 +881,7 @@ node scripts/recover.mjs`}</CodeBlock>
                 </ListItem>
                 <ListItem>
                   Setiap instalasi memiliki satu akun pemilik. Setiap profil
-                  dapat terhubung ke beberapa kanal Telegram atau Discord.
+                  dapat terhubung ke satu chat Telegram dan satu channel Discord.
                 </ListItem>
                 <ListItem>
                   WhatsApp belum didukung. Batas dan harga Cloudflare dapat

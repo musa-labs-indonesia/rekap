@@ -1,6 +1,6 @@
 # Rekap
 
-Rekap records spending from Telegram or Discord and shows reports on a private website. Each installation has one shared owner account. A profile can be linked to one or more Telegram chats and Discord channels, and has its own categories and expenses. This project does not yet support WhatsApp.
+Rekap records spending from Telegram or Discord and shows reports on a private website. Each installation has one shared owner account. A profile can be linked to one Telegram chat and one Discord channel, and has its own categories and expenses. This project does not yet support WhatsApp.
 
 ## Install Rekap
 
@@ -14,7 +14,7 @@ You need a Cloudflare account with Workers, D1, and a workers.dev subdomain, plu
 2. Choose the account and enter the bot token and owner credentials. Use a strong owner password of at least 12 characters.
 3. Open the bot using the installer link and press **Start** in a private chat. This Telegram account can later request password recovery.
 4. Return to the installer, verify the Telegram account, and start installation. When it finishes, open Rekap and sign in.
-5. In BotFather, disable group privacy mode. Add the bot to your group, or remove and re-add it if it was already there. In Rekap, open **Profil** → **Kanal** → Telegram, create a code, then send `/connect CODE` in the group. You can link more Telegram chats or Discord channels later.
+5. In BotFather, disable group privacy mode. Add the bot to your group, or remove and re-add it if it was already there. In Rekap, open **Profil** → **Kanal** → Telegram, create a code, then send `/connect CODE` in the group. One profile can have one Telegram chat and one Discord channel. Unlink the old channel first to change it.
 
 The installer sets the Telegram webhook. Keep the bot token private. Anyone in a linked group can add expenses and categories or request reports. To use Discord, create a bot in the Discord Developer Portal and connect it from **Profil** → **Integrasi**. The app's **Panduan** page covers both providers. The [usage](#usage), [recovery](#recovery), and [updates](#hosted-installer-and-updates) sections cover operation after installation.
 
