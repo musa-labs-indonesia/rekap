@@ -29,7 +29,7 @@ export function ProfileDialog({
   const { selectProfile, handleUnauthorized } = useApp();
   const [error, setError] = useState("");
   const mutation = useMutation({
-    mutationFn: (values: { name: string; chatId: string }) =>
+    mutationFn: (values: { name: string }) =>
       postAction("", "createProfile", values),
     onSuccess: (result) => {
       if (result.id) selectProfile(result.id);
@@ -52,12 +52,11 @@ export function ProfileDialog({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") ?? "").trim();
-    const chatId = String(form.get("chatId") ?? "").trim();
-    if (!name || !/^-?\d+$/.test(chatId)) {
-      setError("Isi nama dan ID chat Telegram yang valid.");
+    if (!name) {
+      setError("Isi nama profil.");
       return;
     }
-    mutation.mutate({ name, chatId });
+    mutation.mutate({ name });
   }
 
   function handleOpenChange(value: boolean) {
@@ -76,7 +75,7 @@ export function ProfileDialog({
         <DialogHeader>
           <DialogTitle>Profil baru</DialogTitle>
           <DialogDescription>
-            Setiap profil terhubung ke satu chat Telegram.
+            Buat profil untuk mengelompokkan transaksi. Hubungkan kanal dari halaman Profil.
           </DialogDescription>
         </DialogHeader>
         {shownError ? (
@@ -91,16 +90,6 @@ export function ProfileDialog({
             <Field>
               <FieldLabel htmlFor="profile-name">Nama profil</FieldLabel>
               <Input id="profile-name" name="name" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="profile-chat-id">ID chat Telegram</FieldLabel>
-              <Input
-                id="profile-chat-id"
-                name="chatId"
-                inputMode="numeric"
-                autoComplete="off"
-                required
-              />
             </Field>
           </FieldGroup>
         </form>

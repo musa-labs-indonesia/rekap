@@ -53,9 +53,12 @@ export async function spending(request: Request, db: D1Database): Promise<Respon
   const profileId = text(body.profileId);
   if (action === "createProfile") {
     const name = text(body.name);
-    const chatId = text(body.chatId);
-    if (!name || !/^-?\d+$/.test(chatId)) return bad("Nama dan ID chat yang valid wajib diisi.");
+    const requestedChatId = text(body.chatId);
+    if (!name) return bad("Nama profil wajib diisi.");
+    if (requestedChatId && !/^-?\d+$/.test(requestedChatId))
+      return bad("ID chat tidak valid.");
     const profile = id();
+    const chatId = requestedChatId || `unlinked:${profile}`;
     try {
       await db.batch([
         db

@@ -1,6 +1,6 @@
 # Rekap
 
-Rekap records spending from a Telegram group or private chat and shows reports on a private website. Each installation has one shared owner account. Each profile is linked to one chat and has its own categories and expenses. This project does not yet support WhatsApp.
+Rekap records spending from Telegram or Discord and shows reports on a private website. Each installation has one shared owner account. A profile can be linked to one or more Telegram chats and Discord channels, and has its own categories and expenses. This project does not yet support WhatsApp.
 
 ## Install Rekap
 
@@ -14,9 +14,9 @@ You need a Cloudflare account with Workers, D1, and a workers.dev subdomain, plu
 2. Choose the account and enter the bot token and owner credentials. Use a strong owner password of at least 12 characters.
 3. Open the bot using the installer link and press **Start** in a private chat. This Telegram account can later request password recovery.
 4. Return to the installer, verify the Telegram account, and start installation. When it finishes, open Rekap and sign in.
-5. In BotFather, disable group privacy mode. Add the bot to your group, or remove and re-add it if it was already there. Send `/chatid` in the group or private chat, then create a profile with that ID in Rekap.
+5. In BotFather, disable group privacy mode. Add the bot to your group, or remove and re-add it if it was already there. In Rekap, open **Profil** → **Kanal** → Telegram, create a code, then send `/connect CODE` in the group. You can link more Telegram chats or Discord channels later.
 
-The installer sets the Telegram webhook. Keep the bot token private. Anyone in a linked group can add expenses and categories or request reports. The [usage](#usage), [recovery](#recovery), and [updates](#hosted-installer-and-updates) sections cover operation after installation. The app also has a **Panduan** page.
+The installer sets the Telegram webhook. Keep the bot token private. Anyone in a linked group can add expenses and categories or request reports. To use Discord, create a bot in the Discord Developer Portal and connect it from **Profil** → **Integrasi**. The app's **Panduan** page covers both providers. The [usage](#usage), [recovery](#recovery), and [updates](#hosted-installer-and-updates) sections cover operation after installation.
 
 ## Manual deployment
 
@@ -45,11 +45,13 @@ The owner account is created on the first auth request. Later changes to the ini
 
 Generate a webhook secret with `openssl rand -hex 32`. The command prints a sensitive value: keep it private and use it for both the Worker secret and Telegram `setWebhook` secret token. Length alone does not make a secret random. Existing installations with a shorter secret must update both values when deploying this version; Telegram delivery will fail until they match.
 
-In BotFather, disable group privacy mode for this bot, then remove and re-add the bot to the group if needed. The bot needs normal group messages to receive `catat`. Configure Telegram `setWebhook` with URL `https://YOUR-ORIGIN/api/telegram` and the same `secret_token` as `TELEGRAM_WEBHOOK_SECRET`. Telegram must be able to reach the URL over HTTPS. Treat the bot token and webhook secret as passwords; avoid putting them in shell history, logs, or screenshots. Send `/chatid` in the chat to get its numeric ID; a group ID is normally negative. Create a profile on the website with that chat ID. Anyone in the linked group can add expenses and categories or request reports.
+In BotFather, disable group privacy mode for this bot, then remove and re-add the bot to the group if needed. The bot needs normal group messages to receive `catat`. Configure Telegram `setWebhook` with URL `https://YOUR-ORIGIN/api/telegram` and the same `secret_token` as `TELEGRAM_WEBHOOK_SECRET`. Telegram must be able to reach the URL over HTTPS. Treat the bot token and webhook secret as passwords; avoid putting them in shell history, logs, or screenshots. After deployment, sign in, create a profile, then open **Profil** → **Kanal** → Telegram, create a code, and send `/connect CODE` in the chat. Anyone in the linked chat can add expenses and categories or request reports. The `/chatid` command still shows a chat ID for troubleshooting; a group ID is normally negative.
 
 ## Usage
 
 Send `/help` to see the bot commands, even before a chat is linked to a profile. Send `catat, 20.000, bubur ayam, makan` or `catat, 20000, bubur ayam, makan`. All four fields are required; amounts are positive whole rupiah. The sum of all expenses in one profile cannot exceed Rp9.000.000.000.000.000. New profiles start with `makan`, `transport`, `belanja`, and `tagihan`. Use `/addcategory nama kategori` to add one. Use `/report_daily`, `/report_weekly`, or `/report_monthly` for the current Jakarta period. Weeks begin on Monday. Each `catat` message stores the sender's Telegram name, username, and numeric ID. The transaction list and CSV export show this as `Pelapor`; older expenses and manual website entries have no reporter. Editing or deleting a Telegram message does not change a saved expense; use the website instead.
+
+For Discord, use `/catat` with one `data` option: `/catat 30.000, nasi, makan`. Use `/laporan` with an optional `periode` of `harian`, `mingguan`, or `bulanan`, and `/bantuan` for help. The command stores the sender's Discord display name or username and numeric ID as `Pelapor`. Discord retries do not create a duplicate expense. Free-text `catat` messages are not supported; use the slash command.
 
 The website supports manual entries, historical dates, profile and category management, filters, and CSV export. To import, select a profile and choose **Impor CSV** on the transactions page. Use UTF-8 CSV with columns `Tanggal,Item,Kategori,Jumlah` and an optional `Pelapor` column, ISO dates such as `2024-05-04`, and positive whole rupiah amounts without separators. Import ignores `Pelapor`. Review the preview and any new categories before importing. Each file is limited to 500 transactions and 1 MB. Reimporting a file can create duplicates. Archived profiles can be restored. Archived categories remain on existing expenses but cannot be selected for new manual entries; imported transactions keep matching categories archived.
 
@@ -83,7 +85,7 @@ No route-free invocation is available here. Cloudflare service bindings can call
 
 A lost deployment is not retried automatically. Check the active version, or deploy the new version manually, then select **Periksa lagi**. **Batalkan pembaruan** is available only before a deployment request is sent and before any database migration is applied. After a migration, cancellation is refused; continue the update or restore the database manually.
 
-Before approving a migration in `migrations/auto-update.json`, review whether the running old Worker can safely use the changed schema throughout the update, including if deployment fails. Add the migration filename and its SHA-256 hash to the file only after that review. The approval list is empty initially. The hash detects changes to the reviewed file; it does not prove that the migration is safe. Migrations that cannot meet this requirement need a manual update plan.
+Before approving a migration in `migrations/auto-update.json`, review whether the running old Worker can safely use the changed schema throughout the update, including if deployment fails. Add the migration filename and its SHA-256 hash to the file only after that review. The hash detects changes to the reviewed file; it does not prove that the migration is safe. Migrations that are not listed require a manual update plan.
 
 The current update check compares the embedded build's hash with the installed build's hash. It does not yet verify a Git tag or release, or prevent downgrades. Do not rely on it as a release verification mechanism.
 
@@ -93,7 +95,7 @@ The installer currently tracks one installation per Cloudflare account. It does 
 
 1. Export the correct D1 database from the Cloudflare dashboard and verify the backup if you may need its spending data later. Deleting a database removes its data.
 2. In the installer, select **Putuskan koneksi**. This revokes the installer's current OAuth token; it does not delete the app or database. You can also revoke the authorization under Cloudflare profile → Access Management → Connected Applications.
-3. To stop Telegram from sending messages to the app, call Telegram's `deleteWebhook` method with the bot token. Keep the token out of chat, shell history, and logs. `deleteWebhook` does not revoke the bot token; retained pending messages may be delivered if you connect the bot again. To replace a compromised token, use BotFather's `/revoke` and replace the old token wherever it is used.
+3. To stop Telegram from sending messages to the app, open **Profil** → **Integrasi** → Telegram and select **Putuskan**. This calls Telegram's `deleteWebhook`, disables the integration, and keeps transaction history. You can also call `deleteWebhook` manually with the bot token. Keep the token out of chat, shell history, and logs. `deleteWebhook` does not revoke the bot token; retained pending messages may be delivered if you connect the bot again. To replace a compromised token, use BotFather's `/revoke` and replace the old token wherever it is used.
 4. In Cloudflare **Workers & Pages**, find the generated Rekap Worker and delete it. This stops the website and does not delete D1.
 5. Only after checking the backup and the database ID, delete the matching database in **Storage & databases → D1**. This is a separate, destructive action.
 
@@ -118,7 +120,7 @@ bash -c '
 
 Clone the repository, install Node.js 22.18 or later and Vite+ (`vp`), then run `vp install`. Create an ignored `.dev.vars` file with the variables in [Manual deployment](#manual-deployment), using `APP_URL=http://localhost:3000` and non-production credentials. Use the local placeholder database ID, then run `vp exec cf d1 migrations apply 11111111-1111-4111-8111-111111111111 --local --persist-to .cloudflare/state --dir migrations` and `vp exec cf dev`. Telegram cannot send a webhook to localhost without a secure public tunnel. Never use production secrets or real spending data in local development.
 
-Run `vp exec tsc --noEmit`, `vp test run src/server/auth.test.ts --config src/server/auth/test.config.ts`, `vp test run --root src/server telegram.test.ts`, and `vp exec cf build` for the current checks. The tests use a local SQLite test adapter, not a deployed D1 database or live Telegram API. Cloudflare limits and pricing can change; check current Workers and D1 quotas before deployment.
+Run `vp exec tsc --noEmit`, `vp test run src/server/auth.test.ts --config src/server/auth/test.config.ts`, `vp test run --root src/server`, and `vp exec cf build` for the current checks. The tests use a local SQLite test adapter, not a deployed D1 database or live Telegram or Discord API. Cloudflare limits and pricing can change; check current Workers and D1 quotas before deployment.
 
 For installer changes, run `pnpm --dir installer test`. The installer build embeds the app bundle and migrations. A push to GitHub does not update the hosted installer; it must be rebuilt and deployed separately.
 

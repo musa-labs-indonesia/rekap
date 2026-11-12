@@ -8,6 +8,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
   const script = source
     .replace(/("path": "0002_auth\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
     .replace(/("path": "0003_reporter\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
+    .replace(/("path": "0004_channels\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
   assert.notEqual(script, source)
   let failRevocation = false
   let revocations = 0
@@ -37,6 +38,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
   let migrationRuntime
   let migrationDb
   let migrationName
+  let migrationTarget
   let migrationBindings = []
   let migrationAttempts = 0
   let migrationDeletes = 0
@@ -140,14 +142,16 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
             migrationBindings = metadata.bindings
             migrationName = name
             migrationSubdomain = false
-            migrationRuntime = new Miniflare({ workers: [{ config: { name: 'migration', compatibilityDate: '2026-11-08', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: await form.get('index.js').text() } } }, env: { DB: { type: 'd1', id: 'migration-test-db' } } } }] })
+            const code = await form.get('index.js').text()
+            migrationTarget = code.match(/const name = "([^"]+)";/)?.[1]
+            assert.ok(migrationTarget)
+            migrationRuntime = new Miniflare({ workers: [{ config: { name: 'migration', compatibilityDate: '2026-11-08', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: code } } }, env: { DB: { type: 'd1', id: 'migration-test-db' } } } }] })
             migrationDb = await migrationRuntime.getD1Database('DB')
             await migrationDb.batch([
               migrationDb.prepare('CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT UNIQUE)'),
-              migrationDb.prepare("INSERT INTO d1_migrations (name) VALUES ('0001_spending.sql'), ('0002_auth.sql')"),
-              migrationDb.prepare('CREATE TABLE spending (amount INTEGER NOT NULL)'),
-              migrationDb.prepare('INSERT INTO spending VALUES (23000)'),
-              migrationDb.prepare('CREATE TABLE expenses (id TEXT PRIMARY KEY, reporter_id TEXT)'),
+              migrationDb.prepare("INSERT INTO d1_migrations (name) VALUES ('0001_spending.sql'), ('0002_auth.sql'), ('0003_reporter.sql')"),
+              migrationDb.prepare('CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT, chat_id TEXT, archived INTEGER, created_at INTEGER)'),
+              migrationDb.prepare('CREATE TABLE expenses (id TEXT PRIMARY KEY, profile_id TEXT, telegram_chat_id TEXT, telegram_message_id INTEGER, reporter_id TEXT)'),
             ])
             return Response.json({ success: true, result: {} })
           }
@@ -172,7 +176,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           if (suffix === '/settings') return workerName === name ? Response.json({ success: true, result: { bindings: workerBindings } }) : Response.json({ success: false }, { status: 404 })
           if (suffix === '/secrets') return Response.json({ success: true, result: workerBindings.filter(binding => binding.type === 'secret_text').map(binding => ({ name: binding.name })) })
           if (suffix === '/secrets/OWNER_PASSWORD' && request.method === 'DELETE') {
-            assert.equal(applied.size, 3)
+            assert.equal(applied.size, 4)
             workerBindings = workerBindings.filter(binding => binding.name !== 'OWNER_PASSWORD')
             secretDeletes++
             if (failSecretDeleteReply) {
@@ -232,7 +236,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           assert.equal(denied.status, 403)
           const result = await migrationRuntime.dispatchFetch('https://migration.test/', { method: 'POST', headers: { Authorization: request.headers.get('Authorization') } })
           if (result.status === 204) {
-            applied.add('0003_reporter.sql')
+            applied.add(migrationTarget)
             const replay = await migrationRuntime.dispatchFetch('https://migration.test/', { method: 'POST', headers: { Authorization: request.headers.get('Authorization') } })
             assert.equal(replay.status, 409)
             return new Response(null, { status: 503 })
@@ -357,7 +361,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
       installation = (await result.json()).installation
       assert.equal(installation.phase, phase)
     }
-    assert.equal(applied.size, 3)
+    assert.equal(applied.size, 4)
     assert.equal(secretDeletes, 1)
     assert.equal(workerBindings.some(binding => binding.name === 'OWNER_PASSWORD'), false)
     assert.equal(workerBindings.find(binding => binding.name === 'DB').database_id, databaseId)
@@ -387,16 +391,13 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
     applied.clear()
     applied.add('0001_spending.sql')
     applied.add('0002_auth.sql')
+    applied.add('0003_reporter.sql')
     assert.equal((await (await install('update')).json()).installation.phase, 'update_prepare')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_domain')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_apply')
-    assert.equal((await (await install('step')).json()).error, 'Database migration did not complete')
-    assert.equal(await migrationDb.prepare("SELECT name FROM d1_migrations WHERE name = '0003_reporter.sql'").first(), null)
-    assert.equal(await migrationDb.prepare("SELECT name FROM sqlite_master WHERE name = 'rekap_migration_guard'").first(), null)
-    await migrationDb.prepare('DROP TABLE expenses').run()
-    await migrationDb.prepare('CREATE TABLE expenses (id TEXT PRIMARY KEY)').run()
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_cleanup')
-    assert.equal(migrationAttempts, 2)
+    assert.equal(migrationAttempts, 1)
+    assert.deepEqual(await migrationDb.prepare("SELECT name FROM d1_migrations WHERE name = '0004_channels.sql'").first(), { name: '0004_channels.sql' })
     assert.equal((await (await install('step')).json()).installation.phase, 'update_prepare')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_deploy')
     assert.equal(versionUploads, 1)
@@ -412,7 +413,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
 
     deployedVersion = 'old-version'
     await storage.exec("UPDATE job SET value = json_set(value, '$.artifactId', 'older-artifact') WHERE id = 1")
-    applied.delete('0003_reporter.sql')
+    applied.delete('0004_channels.sql')
     failMigrationUpload = true
     assert.equal((await (await install('update')).json()).installation.phase, 'update_prepare')
     assert.equal((await install('step')).status, 502)

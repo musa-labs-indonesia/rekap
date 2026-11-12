@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
+  Cable,
   CircleAlert,
   KeyRound,
   LayoutDashboard,
@@ -127,6 +128,12 @@ function ShellContent() {
       label: "Profil",
       icon: Users,
       active: pathname.startsWith("/profiles"),
+    },
+    {
+      to: "/integrations",
+      label: "Integrasi",
+      icon: Cable,
+      active: pathname.startsWith("/integrations"),
     },
   ] as const;
 

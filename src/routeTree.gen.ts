@@ -14,9 +14,12 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppCategoriesRouteImport } from './routes/_app.categories'
+import { Route as AppIntegrationsRouteImport } from './routes/_app.integrations'
 import { Route as AppProfilesRouteImport } from './routes/_app.profiles'
 import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
+import { Route as ApiChannelsRouteImport } from './routes/api/channels'
 import { Route as ApiDataRouteImport } from './routes/api/data'
+import { Route as ApiDiscordRouteImport } from './routes/api/discord'
 import { Route as ApiRecoverRouteImport } from './routes/api/recover'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiUpdateRouteImport } from './routes/api/update'
@@ -46,6 +49,11 @@ const AppCategoriesRoute = AppCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIntegrationsRoute = AppIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProfilesRoute = AppProfilesRouteImport.update({
   id: '/profiles',
   path: '/profiles',
@@ -56,9 +64,19 @@ const AppTransactionsRoute = AppTransactionsRouteImport.update({
   path: '/transactions',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiChannelsRoute = ApiChannelsRouteImport.update({
+  id: '/api/channels',
+  path: '/api/channels',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDataRoute = ApiDataRouteImport.update({
   id: '/api/data',
   path: '/api/data',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDiscordRoute = ApiDiscordRouteImport.update({
+  id: '/api/discord',
+  path: '/api/discord',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRecoverRoute = ApiRecoverRouteImport.update({
@@ -87,9 +105,12 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
   '/categories': typeof AppCategoriesRoute
+  '/integrations': typeof AppIntegrationsRoute
   '/profiles': typeof AppProfilesRoute
   '/transactions': typeof AppTransactionsRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/data': typeof ApiDataRoute
+  '/api/discord': typeof ApiDiscordRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/update': typeof ApiUpdateRoute
@@ -99,9 +120,12 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
   '/categories': typeof AppCategoriesRoute
+  '/integrations': typeof AppIntegrationsRoute
   '/profiles': typeof AppProfilesRoute
   '/transactions': typeof AppTransactionsRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/data': typeof ApiDataRoute
+  '/api/discord': typeof ApiDiscordRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/update': typeof ApiUpdateRoute
@@ -114,9 +138,12 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/recover': typeof RecoverRoute
   '/_app/categories': typeof AppCategoriesRoute
+  '/_app/integrations': typeof AppIntegrationsRoute
   '/_app/profiles': typeof AppProfilesRoute
   '/_app/transactions': typeof AppTransactionsRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/data': typeof ApiDataRoute
+  '/api/discord': typeof ApiDiscordRoute
   '/api/recover': typeof ApiRecoverRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/update': typeof ApiUpdateRoute
@@ -130,9 +157,12 @@ export interface FileRouteTypes {
     | '/docs'
     | '/recover'
     | '/categories'
+    | '/integrations'
     | '/profiles'
     | '/transactions'
+    | '/api/channels'
     | '/api/data'
+    | '/api/discord'
     | '/api/recover'
     | '/api/telegram'
     | '/api/update'
@@ -142,9 +172,12 @@ export interface FileRouteTypes {
     | '/docs'
     | '/recover'
     | '/categories'
+    | '/integrations'
     | '/profiles'
     | '/transactions'
+    | '/api/channels'
     | '/api/data'
+    | '/api/discord'
     | '/api/recover'
     | '/api/telegram'
     | '/api/update'
@@ -156,9 +189,12 @@ export interface FileRouteTypes {
     | '/docs'
     | '/recover'
     | '/_app/categories'
+    | '/_app/integrations'
     | '/_app/profiles'
     | '/_app/transactions'
+    | '/api/channels'
     | '/api/data'
+    | '/api/discord'
     | '/api/recover'
     | '/api/telegram'
     | '/api/update'
@@ -170,7 +206,9 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   DocsRoute: typeof DocsRoute
   RecoverRoute: typeof RecoverRoute
+  ApiChannelsRoute: typeof ApiChannelsRoute
   ApiDataRoute: typeof ApiDataRoute
+  ApiDiscordRoute: typeof ApiDiscordRoute
   ApiRecoverRoute: typeof ApiRecoverRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiUpdateRoute: typeof ApiUpdateRoute
@@ -214,6 +252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCategoriesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/integrations': {
+      id: '/_app/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof AppIntegrationsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/profiles': {
       id: '/_app/profiles'
       path: '/profiles'
@@ -228,11 +273,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTransactionsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/channels': {
+      id: '/api/channels'
+      path: '/api/channels'
+      fullPath: '/api/channels'
+      preLoaderRoute: typeof ApiChannelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/data': {
       id: '/api/data'
       path: '/api/data'
       fullPath: '/api/data'
       preLoaderRoute: typeof ApiDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/discord': {
+      id: '/api/discord'
+      path: '/api/discord'
+      fullPath: '/api/discord'
+      preLoaderRoute: typeof ApiDiscordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/recover': {
@@ -268,6 +327,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppCategoriesRoute: typeof AppCategoriesRoute
+  AppIntegrationsRoute: typeof AppIntegrationsRoute
   AppProfilesRoute: typeof AppProfilesRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -275,6 +335,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppCategoriesRoute: AppCategoriesRoute,
+  AppIntegrationsRoute: AppIntegrationsRoute,
   AppProfilesRoute: AppProfilesRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppIndexRoute: AppIndexRoute,
@@ -286,7 +347,9 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   DocsRoute: DocsRoute,
   RecoverRoute: RecoverRoute,
+  ApiChannelsRoute: ApiChannelsRoute,
   ApiDataRoute: ApiDataRoute,
+  ApiDiscordRoute: ApiDiscordRoute,
   ApiRecoverRoute: ApiRecoverRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiUpdateRoute: ApiUpdateRoute,

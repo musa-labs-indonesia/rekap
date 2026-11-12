@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Plus, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { Archive, ArchiveRestore, Cable, Plus, Users } from "lucide-react";
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -22,8 +22,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useApp } from "./app-provider";
-import { ApiError, postAction } from "./api";
+import { ApiError, fetchChannels, postAction } from "./api";
 import type { Profile } from "./api";
+import { ChannelDialog } from "./channel-dialog";
 import { ConfirmDialog } from "./confirm-dialog";
 import { PageHeader } from "./page-header";
 import { ProfileDialog } from "./profile-dialog";
@@ -38,7 +39,15 @@ export function ProfilesPage() {
   const queryClient = useQueryClient();
   const { profiles, selectedProfileId, handleUnauthorized } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [channelProfile, setChannelProfile] = useState<Profile | null>(null);
   const [profileAction, setProfileAction] = useState<ProfileAction | null>(null);
+  const channelsQuery = useQuery({
+    queryKey: queryKeys.channels,
+    queryFn: fetchChannels,
+    retry: false,
+  });
+  const channels = channelsQuery.data?.channels ?? [];
+  const integrations = channelsQuery.data?.integrations ?? [];
 
   const profileMutation = useMutation({
     mutationFn: (value: ProfileAction) => postAction(value.profile.id, value.action),
@@ -66,16 +75,25 @@ export function ProfilesPage() {
       <PageHeader
         title="Profil"
         actions={
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus />
-            Profil baru
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link to="/integrations">
+                <Cable />
+                Integrasi
+              </Link>
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus />
+              Profil baru
+            </Button>
+          </>
         }
       />
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Setiap profil terhubung ke satu chat Telegram. Pilih profil aktif dari menu samping.
+            Kelola profil dan tautkan chat Telegram atau channel Discord. Pilih profil aktif dari
+            menu samping.
           </p>
           <Badge variant="outline">{profiles.length} profil</Badge>
         </div>
@@ -84,6 +102,9 @@ export function ProfilesPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {profiles.map((profile) => {
               const selected = profile.id === selectedProfileId;
+              const linkedChannels = channels.filter(
+                (channel) => channel.profile_id === profile.id,
+              );
               return (
                 <Card
                   key={profile.id}
@@ -97,29 +118,55 @@ export function ProfilesPage() {
                       <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
                         <Users aria-hidden="true" className="size-5" />
                       </div>
-                      <div className="min-w-0">
-                        <CardTitle className="truncate">{profile.name}</CardTitle>
-                        <CardDescription>ID chat {profile.chat_id}</CardDescription>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="break-words">{profile.name}</CardTitle>
+                        <CardDescription>
+                          {linkedChannels.length
+                            ? `${linkedChannels.length} kanal terhubung`
+                            : "Belum ada kanal"}
+                        </CardDescription>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selected ? <Badge>Sedang dipilih</Badge> : null}
+                          {profile.archived ? (
+                            <Badge variant="outline">Diarsipkan</Badge>
+                          ) : (
+                            <Badge variant="secondary">Aktif</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <CardAction className="flex flex-wrap justify-end gap-1.5">
-                      {selected ? <Badge>Sedang dipilih</Badge> : null}
-                      {profile.archived ? (
-                        <Badge variant="outline">Diarsipkan</Badge>
-                      ) : (
-                        <Badge variant="secondary">Aktif</Badge>
-                      )}
-                    </CardAction>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 px-3 py-2">
-                      <span className="text-xs text-muted-foreground">ID chat Telegram</span>
-                      <span className="truncate text-sm font-medium tabular-nums">
-                        {profile.chat_id}
-                      </span>
-                    </div>
+                    {linkedChannels.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {linkedChannels.map((channel) => (
+                          <Badge key={channel.id} variant="outline">
+                            {channel.type === "telegram" ? "Telegram" : "Discord"}
+                            {" · "}
+                            {channel.external_name &&
+                            channel.external_name !== channel.integration_name
+                              ? channel.external_name
+                              : channel.external_id}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Hubungkan chat Telegram atau channel Discord untuk mulai mencatat.
+                      </p>
+                    )}
                   </CardContent>
-                  <CardFooter className="justify-end bg-transparent">
+                  <CardFooter className="justify-end gap-2 bg-transparent">
+                    {!profile.archived ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setChannelProfile(profile)}
+                      >
+                        <Cable />
+                        Kanal
+                      </Button>
+                    ) : null}
                     {profile.archived ? (
                       <Button
                         size="sm"
@@ -155,7 +202,8 @@ export function ProfilesPage() {
             <EmptyHeader>
               <EmptyTitle>Mulai dengan profil.</EmptyTitle>
               <EmptyDescription>
-                Buat profil dan hubungkan ID chat Telegram untuk mencatat pengeluaran.
+                Buat profil, lalu tautkan chat Telegram atau channel Discord untuk mencatat
+                pengeluaran.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
@@ -169,6 +217,15 @@ export function ProfilesPage() {
       </div>
 
       <ProfileDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <ChannelDialog
+        open={Boolean(channelProfile)}
+        onOpenChange={(open) => {
+          if (!open) setChannelProfile(null);
+        }}
+        profile={channelProfile}
+        integrations={integrations}
+        channels={channels}
+      />
 
       <ConfirmDialog
         open={Boolean(profileAction)}
@@ -177,8 +234,8 @@ export function ProfilesPage() {
         description={
           profileAction
             ? archive
-              ? `Chat ${profileAction.profile.chat_id} tidak dapat menambah transaksi. Data tetap tersimpan.`
-              : `Chat ${profileAction.profile.chat_id} dapat menambah transaksi lagi.`
+              ? `Profil ${profileAction.profile.name} tidak dapat menambah transaksi. Data tetap tersimpan.`
+              : `Profil ${profileAction.profile.name} dapat menambah transaksi lagi.`
             : ""
         }
         confirmLabel={archive ? "Arsipkan" : "Pulihkan"}

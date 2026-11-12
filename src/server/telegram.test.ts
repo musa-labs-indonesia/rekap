@@ -53,9 +53,10 @@ beforeEach(() => {
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(readFileSync('migrations/0001_spending.sql', 'utf8'))
   sqlite.exec(readFileSync('migrations/0003_reporter.sql', 'utf8'))
+  sqlite.exec(readFileSync('migrations/0004_channels.sql', 'utf8'))
   sqlite.exec("INSERT INTO profiles VALUES ('p', 'Rumah', '-100', 0, 1), ('archived', 'Arsip', '-200', 1, 1), ('other', 'Lain', '-300', 0, 1)")
   sqlite.exec("INSERT INTO categories VALUES ('c', 'p', 'Makan', 'makan', 0), ('arch-c', 'p', 'Lama', 'lama', 1), ('other-c', 'other', 'Lain', 'lain', 0)")
-  env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: webhookSecret, TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example' }
+  env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: webhookSecret, TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example', BETTER_AUTH_SECRET: 'test-secret-0123456789abcdef0123456789' }
   replies = []
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
     replies.push(JSON.parse(String(init.body)))

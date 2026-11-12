@@ -28,7 +28,7 @@ export const Route = createFileRoute("/docs")({
       {
         name: "description",
         content:
-          "Panduan untuk anggota chat dan operator Rekap. Catat pengeluaran lewat Telegram atau siapkan aplikasi di Cloudflare.",
+          "Panduan untuk anggota chat dan operator Rekap. Catat pengeluaran lewat Telegram atau Discord, lalu siapkan aplikasi di Cloudflare.",
       },
     ],
   }),
@@ -43,15 +43,30 @@ const sections = [
     icon: MessageCircle,
   },
   {
+    id: "discord",
+    label: "Perintah Discord",
+    icon: Send,
+  },
+  {
     id: "website",
     label: "Situs web",
     icon: Monitor,
   },
   { id: "setup", label: "Penyiapan", icon: Settings },
   {
-    id: "hubungkan-telegram",
-    label: "Hubungkan Telegram",
+    id: "telegram-bot",
+    label: "Token bot Telegram",
+    icon: MessageCircle,
+  },
+  {
+    id: "discord-bot",
+    label: "Token bot Discord",
     icon: Send,
+  },
+  {
+    id: "kanal",
+    label: "Hubungkan kanal",
+    icon: Settings,
   },
   { id: "pembaruan", label: "Pembaruan dan cadangan", icon: Settings },
   {
@@ -81,6 +96,10 @@ const commands = [
     description: "Menampilkan ID chat saat ini, termasuk sebelum profil terhubung.",
   },
   {
+    command: "/connect KODE",
+    description: "Menghubungkan chat ini ke profil yang dipilih di situs web.",
+  },
+  {
     command: "/addcategory nama kategori",
     description: "Menambah kategori baru untuk profil yang terhubung.",
   },
@@ -98,16 +117,38 @@ const commands = [
   },
 ];
 
+const discordCommands = [
+  {
+    command: "/catat",
+    description:
+      "Mencatat pengeluaran. Isi opsi data dengan jumlah, item, dan kategori, misalnya 30.000, nasi, makan.",
+  },
+  {
+    command: "/laporan",
+    description:
+      "Menampilkan laporan. Opsi periode dapat berisi harian, mingguan, atau bulanan; bawaan harian.",
+  },
+  {
+    command: "/bantuan",
+    description: "Menampilkan panduan perintah Discord.",
+  },
+];
+
 const websiteFeatures = [
   {
     title: "Profil",
     description:
-      "Buat, arsipkan, dan pulihkan profil. Satu profil terhubung ke satu ID chat Telegram.",
+      "Buat, arsipkan, dan pulihkan profil. Satu profil dapat terhubung ke beberapa kanal.",
+  },
+  {
+    title: "Integrasi",
+    description:
+      "Hubungkan bot Telegram atau Discord, lalu atur kanal untuk setiap profil.",
   },
   {
     title: "Transaksi",
     description:
-      "Tambah, ubah, dan hapus pengeluaran. Tanggal historis didukung. Pelapor Telegram tampil di daftar.",
+      "Tambah, ubah, dan hapus pengeluaran. Tanggal historis didukung. Pelapor Telegram atau Discord tampil di daftar.",
   },
   {
     title: "Filter",
@@ -335,8 +376,9 @@ function Docs() {
                       </h1>
                       <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                         Anggota chat mencatat pengeluaran dan meminta laporan
-                        lewat Telegram. Operator menyiapkan bot dan mengelola
-                        profil. Pemilik harus masuk untuk melihat data di situs web.
+                        lewat Telegram atau Discord. Operator menyiapkan bot dan
+                        mengelola profil. Pemilik harus masuk untuk melihat data di
+                        situs web.
                       </p>
                       <div className="mt-6 flex flex-wrap gap-2.5">
                         <Button asChild className="rounded-full">
@@ -391,8 +433,8 @@ function Docs() {
                   description="Tidak ada pendaftaran mandiri."
                 />
                 <Fact
-                  title="Satu chat per profil"
-                  description="Grup atau chat pribadi Telegram."
+                  title="Banyak kanal per profil"
+                  description="Telegram, Discord, atau keduanya."
                 />
                 <Fact
                   title="Empat kategori awal"
@@ -403,8 +445,9 @@ function Docs() {
               <div className="mt-4 space-y-4">
             <Section id="mulai" title="Mulai cepat">
               <p>
-                Pasang Rekap dengan installer, lalu hubungkan chat Telegram ke
-                profil. Anggota chat dapat mencatat setelah profil terhubung.
+                Pasang Rekap dengan installer, lalu hubungkan chat Telegram atau
+                channel Discord ke profil. Anggota chat dapat mencatat setelah
+                profil terhubung.
               </p>
               <ol className="grid gap-4 sm:grid-cols-3">
                 <Step number="01" title="Pasang Rekap">
@@ -412,22 +455,25 @@ function Docs() {
                   Lihat langkah di bagian{" "}
                   <a className="underline underline-offset-4" href="#setup">Penyiapan</a>.
                 </Step>
-                <Step number="02" title="Hubungkan chat">
-                  Tambahkan bot ke chat, kirim <InlineCode>/chatid</InlineCode>,
-                  lalu buat profil dengan ID tersebut. Lihat{" "}
-                  <a className="underline underline-offset-4" href="#hubungkan-telegram">
-                    Hubungkan Telegram
+                <Step number="02" title="Hubungkan kanal">
+                  Buka Profil → Kanal, hubungkan chat Telegram atau channel
+                  Discord. Lihat{" "}
+                  <a className="underline underline-offset-4" href="#kanal">
+                    Hubungkan kanal
                   </a>
                   .
                 </Step>
                 <Step number="03" title="Anggota chat mencatat pengeluaran">
                   Kirim <InlineCode>catat, 20.000, bubur ayam, makan</InlineCode>{" "}
-                  di chat yang terhubung.
+                  di Telegram, atau{" "}
+                  <InlineCode>/catat 20.000, bubur ayam, makan</InlineCode> di
+                  Discord.
                 </Step>
               </ol>
               <Callout title="Penting">
-                Hanya chat yang terhubung ke profil aktif yang dapat mencatat.
-                Profil yang diarsipkan tidak menerima transaksi dari Telegram.
+                Hanya kanal yang terhubung ke profil aktif yang dapat mencatat.
+                Profil yang diarsipkan tidak menerima transaksi dari Telegram
+                atau Discord.
               </Callout>
             </Section>
 
@@ -522,6 +568,51 @@ function Docs() {
               </Callout>
             </Section>
 
+            <Section id="discord" title="Perintah Discord">
+              <p>
+                Discord memakai slash command. Hubungkan channel Discord ke
+                profil lebih dulu dari <strong>Profil</strong> →{" "}
+                <strong>Kanal</strong>. Semua anggota channel yang terhubung
+                dapat memakai perintah ini.
+              </p>
+              <div className="space-y-3">
+                {discordCommands.map((item) => (
+                  <div
+                    key={item.command}
+                    className="rounded-xl border border-border bg-secondary/40 p-4"
+                  >
+                    <InlineCode>{item.command}</InlineCode>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <ul className="space-y-3">
+                <ListItem>
+                  Contoh: <InlineCode>/catat 30.000, nasi, makan</InlineCode>.
+                  Discord menampilkan opsi <InlineCode>data</InlineCode>; isi
+                  dengan jumlah, item, dan kategori. Jangan tulis{" "}
+                  <InlineCode>catat</InlineCode> dua kali.
+                </ListItem>
+                <ListItem>
+                  Jumlah, kategori, laporan, dan batas total mengikuti aturan
+                  Telegram. Laporan menggabungkan transaksi semua kanal pada
+                  profil yang sama.
+                </ListItem>
+                <ListItem>
+                  Setiap pencatatan menyimpan nama tampilan Discord atau nama
+                  pengguna dan ID numerik sebagai pelapor. Interaksi Discord yang
+                  sama tidak dicatat dua kali.
+                </ListItem>
+              </ul>
+              <Callout title="Pesan biasa">
+                Rekap belum membaca pesan Discord biasa. Gunakan{" "}
+                <InlineCode>/catat</InlineCode>; pesan seperti{" "}
+                <InlineCode>catat, 30.000, nasi, makan</InlineCode> diabaikan.
+              </Callout>
+            </Section>
+
             <Section id="website" title="Situs web">
               <p>
                 Setiap instalasi memiliki satu akun pemilik. Masuk ke situs web
@@ -592,27 +683,92 @@ function Docs() {
               </Callout>
             </Section>
 
-            <Section id="hubungkan-telegram" title="Hubungkan Telegram">
+            <Section id="telegram-bot" title="Token bot Telegram">
+              <p>
+                Installer sudah membuat dan menghubungkan bot Telegram. Gunakan
+                panduan ini jika Anda ingin mengganti token atau menghubungkan
+                ulang bot dari dashboard.
+              </p>
               <ol className="space-y-4">
                 <NumberedItem number="1">
-                  Di BotFather, nonaktifkan mode privasi grup. Jika bot sudah ada
-                  di grup, keluarkan bot lalu tambahkan kembali. Jika belum,
-                  tambahkan bot ke grup.
+                  Buka BotFather di Telegram, kirim <InlineCode>/newbot</InlineCode>,
+                  lalu salin token bot.
                 </NumberedItem>
                 <NumberedItem number="2">
-                  Kirim <InlineCode>/chatid</InlineCode> di chat yang ingin
-                  dihubungkan. Bot akan membalas dengan ID chat; ID grup biasanya
-                  negatif.
+                  Nonaktifkan mode privasi grup. Jika bot sudah ada di grup,
+                  keluarkan lalu tambahkan kembali.
                 </NumberedItem>
                 <NumberedItem number="3">
-                  Masuk ke situs web sebagai pemilik, lalu buat profil dengan ID
-                  chat tersebut.
+                  Masuk ke Rekap, buka <strong>Profil</strong> →{" "}
+                  <strong>Integrasi</strong> → Telegram, lalu tempel token.
+                </NumberedItem>
+                <NumberedItem number="4">
+                  Buka <strong>Profil</strong> → <strong>Kanal</strong> → Telegram,
+                  buat kode, lalu kirim <InlineCode>/connect KODE</InlineCode> di
+                  grup.
                 </NumberedItem>
               </ol>
               <Callout title="Rahasia">
                 Perlakukan token bot dan rahasia webhook seperti kata sandi.
                 Jangan masukkan ke riwayat shell, log, atau tangkapan layar.
               </Callout>
+            </Section>
+
+            <Section id="discord-bot" title="Token bot Discord">
+              <ol className="space-y-4">
+                <NumberedItem number="1">
+                  Buka Discord Developer Portal, buat application baru, lalu buka
+                  tab <strong>Bot</strong>.
+                </NumberedItem>
+                <NumberedItem number="2">
+                  Pilih <strong>Reset Token</strong>, lalu salin token bot.
+                </NumberedItem>
+                <NumberedItem number="3">
+                  Buka <strong>OAuth2</strong> → URL Generator. Pilih scope{" "}
+                  <InlineCode>bot</InlineCode> dan{" "}
+                  <InlineCode>applications.commands</InlineCode>. Pilih izin View
+                  Channels, Send Messages, dan Read Message History.
+                </NumberedItem>
+                <NumberedItem number="4">
+                  Buka URL undangan, pilih server Discord, lalu tambahkan bot.
+                </NumberedItem>
+                <NumberedItem number="5">
+                  Di Rekap, buka <strong>Profil</strong> →{" "}
+                  <strong>Integrasi</strong> → Discord, lalu tempel token.
+                </NumberedItem>
+                <NumberedItem number="6">
+                  Buka <strong>Profil</strong> → <strong>Kanal</strong> → Discord,
+                  pilih server dan channel. Gunakan{" "}
+                  <InlineCode>/catat 30.000, nasi, makan</InlineCode>.
+                </NumberedItem>
+              </ol>
+              <p>
+                Slash command tidak memerlukan Message Content Intent. Aktifkan
+                intent itu hanya jika Rekap nanti memakai pesan Discord biasa.
+              </p>
+            </Section>
+
+            <Section id="kanal" title="Hubungkan kanal">
+              <p>
+                Kanal menghubungkan chat Telegram atau channel Discord ke satu
+                profil. Satu kanal hanya boleh terhubung ke satu profil. Satu
+                profil boleh memiliki beberapa kanal dari Telegram dan Discord.
+              </p>
+              <ul className="space-y-3">
+                <ListItem>
+                  <strong>Telegram:</strong> buka Profil → Kanal → Telegram, buat
+                  kode, lalu kirim <InlineCode>/connect KODE</InlineCode> di chat.
+                </ListItem>
+                <ListItem>
+                  <strong>Discord:</strong> buka Profil → Kanal → Discord, lalu
+                  pilih server dan channel dari daftar.
+                </ListItem>
+                <ListItem>
+                  Memutuskan Telegram akan menghapus webhook dan menonaktifkan
+                  kanal Telegram. Riwayat transaksi tetap tersimpan. Discord tetap
+                  aktif jika terhubung.
+                </ListItem>
+              </ul>
             </Section>
 
             <Section id="pembaruan" title="Pembaruan dan cadangan">
@@ -682,7 +838,7 @@ node scripts/recover.mjs`}</CodeBlock>
                 </ListItem>
                 <ListItem>
                   Setiap instalasi memiliki satu akun pemilik. Setiap profil
-                  terhubung ke satu chat.
+                  dapat terhubung ke beberapa kanal Telegram atau Discord.
                 </ListItem>
                 <ListItem>
                   WhatsApp belum didukung. Batas dan harga Cloudflare dapat
@@ -693,7 +849,7 @@ node scripts/recover.mjs`}</CodeBlock>
               </div>
 
               <footer className="mt-8 flex flex-col gap-3 border-t border-border pt-5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <p>Rekap mencatat pengeluaran dari Telegram.</p>
+                <p>Rekap mencatat pengeluaran dari Telegram dan Discord.</p>
                 <div className="flex gap-4">
                   <a href="#isi" className="hover:text-foreground">
                     Kembali ke atas

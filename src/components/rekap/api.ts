@@ -10,8 +10,33 @@ export type Expense = {
   reporter_id: string | null;
   reporter_name: string | null;
   reporter_username: string | null;
+  channel_id: string | null;
+  external_message_id: string | null;
+  source: string;
 };
 export type Data = { profiles: Profile[]; categories: Category[]; expenses: Expense[] };
+export type Integration = {
+  id: string;
+  type: "telegram" | "discord";
+  name: string;
+  source: "env" | "db";
+  status: "connected" | "connecting" | "disabled" | "error";
+  lastError: string | null;
+  publicConfig: Record<string, unknown>;
+};
+export type Channel = {
+  id: string;
+  profile_id: string;
+  integration_id: string;
+  external_id: string;
+  external_name: string | null;
+  active: number;
+  created_at: number;
+  type: "telegram" | "discord";
+  integration_name: string;
+  integration_status: Integration["status"];
+};
+export type ChannelData = { integrations: Integration[]; channels: Channel[] };
 
 export class ApiError extends Error {
   status: number;
@@ -50,6 +75,35 @@ export async function getProfiles(): Promise<Profile[]> {
     .slice(0, 10);
   const result = await fetchData({ profile: "", start: today, end: today });
   return result.profiles;
+}
+
+export async function fetchChannels(): Promise<ChannelData> {
+  const response = await fetch("/api/channels");
+  if (response.status === 401) throw new ApiError(401, "Sesi berakhir. Silakan masuk lagi.");
+  const result = (await response.json().catch(() => null)) as
+    | (ChannelData & { error?: string })
+    | null;
+  if (!response.ok) throw new ApiError(response.status, result?.error || "Kanal tidak dapat dimuat.");
+  if (!result) throw new ApiError(response.status, "Kanal tidak dapat dimuat.");
+  return result;
+}
+
+export async function channelAction(
+  action: string,
+  values: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const response = await fetch("/api/channels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...values }),
+  });
+  if (response.status === 401) throw new ApiError(401, "Sesi berakhir. Silakan masuk lagi.");
+  const result = (await response.json().catch(() => null)) as
+    | (Record<string, unknown> & { error?: string })
+    | null;
+  if (!response.ok)
+    throw new ApiError(response.status, result?.error || "Perubahan tidak dapat disimpan.");
+  return result ?? {};
 }
 
 export async function postAction(

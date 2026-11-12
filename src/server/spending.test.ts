@@ -32,6 +32,7 @@ class TestD1 {
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(readFileSync(new URL("../../migrations/0001_spending.sql", import.meta.url), "utf8"));
     this.db.exec(readFileSync(new URL("../../migrations/0003_reporter.sql", import.meta.url), "utf8"));
+    this.db.exec(readFileSync(new URL("../../migrations/0004_channels.sql", import.meta.url), "utf8"));
   }
   prepare(sql: string) { return new Statement(this.db, sql); }
   async batch(statements: Statement[]) {
@@ -46,6 +47,20 @@ class TestD1 {
     }
   }
 }
+
+it("creates a profile without a chat ID and rejects an invalid one", async () => {
+  const db = new TestD1();
+  const run = (body: object) => spending(new Request("https://example.com/api/data", {
+    method: "POST", body: JSON.stringify(body),
+  }), db as unknown as D1Database);
+  const response = await run({ action: "createProfile", name: "Tanpa Chat" });
+  expect(response.status).toBe(200);
+  const { id } = await response.json() as { id: string };
+  expect(db.db.prepare("SELECT chat_id FROM profiles WHERE id = ?").get(id)?.chat_id).toMatch(/^unlinked:/);
+  expect(db.db.prepare("SELECT COUNT(*) AS count FROM categories WHERE profile_id = ?").get(id)?.count).toBe(4);
+  expect((await run({ action: "createProfile", name: "Salah", chatId: "abc" })).status).toBe(400);
+  db.db.close();
+});
 
 it("removes categories without losing historical expenses and restores a reused name", async () => {
   const db = new TestD1();
