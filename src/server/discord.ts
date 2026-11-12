@@ -1,4 +1,13 @@
-import { buildReport, parseAmount, recordExpense, rupiah, type Period } from "./channel-commands";
+import {
+  buildReport,
+  deleteExpense,
+  getExpenseForAction,
+  parseAmount,
+  recordExpense,
+  rupiah,
+  updateExpense,
+  type Period,
+} from "./channel-commands";
 import {
   discordIntegrationConfig,
   findProfileForChannel,
@@ -13,17 +22,63 @@ type DiscordUser = {
 };
 
 type DiscordOption = { name: string; value?: string };
+type DiscordComponent = {
+  type: number;
+  custom_id?: string;
+  value?: string;
+  components?: DiscordComponent[];
+};
 type DiscordInteraction = {
   id: string;
   type: number;
   channel_id?: string;
   guild_id?: string;
-  data?: { name?: string; options?: DiscordOption[] };
+  data?: {
+    name?: string;
+    options?: DiscordOption[];
+    custom_id?: string;
+    component_type?: number;
+    components?: DiscordComponent[];
+  };
   member?: { user?: DiscordUser };
   user?: DiscordUser;
 };
 
 const encoder = new TextEncoder();
+const actionWindow = 15 * 60 * 1000;
+
+function actionRow(expenseId: string) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          label: "Batalkan",
+          custom_id: `undo_${expenseId}`,
+        },
+        {
+          type: 2,
+          style: 1,
+          label: "Edit",
+          custom_id: `edit_${expenseId}`,
+        },
+      ],
+    },
+  ];
+}
+
+function componentValue(components: DiscordComponent[] | undefined, id: string): string {
+  for (const component of components ?? []) {
+    if (component.custom_id === id && typeof component.value === "string")
+      return component.value.trim();
+    const nested = componentValue(component.components, id);
+    if (nested) return nested;
+  }
+  return "";
+}
+
 
 function hexBytes(value: string): Uint8Array<ArrayBuffer> | null {
   if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0) return null;
@@ -75,11 +130,19 @@ function optionValue(interaction: DiscordInteraction, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function reply(content: string, ephemeral = false) {
+function reply(content: string, ephemeral = false, components?: object[]) {
   return Response.json({
     type: 4,
-    data: { content: content.slice(0, 2000), ...(ephemeral ? { flags: 64 } : {}) },
+    data: {
+      content: content.slice(0, 2000),
+      ...(ephemeral ? { flags: 64 } : {}),
+      ...(components?.length ? { components } : {}),
+    },
   });
+}
+
+function updateMessage(content: string) {
+  return Response.json({ type: 7, data: { content, components: [] } });
 }
 
 function helpText() {
@@ -88,6 +151,7 @@ function helpText() {
     "/catat data:30.000, nasi, makan — catat pengeluaran",
     "/laporan periode:harian|mingguan|bulanan — laporan",
     "/bantuan — tampilkan panduan ini",
+    "Balasan /catat punya tombol Batalkan dan Edit. Hanya pencatat yang dapat memakainya.",
   ].join("\n");
 }
 
@@ -99,6 +163,125 @@ function reportPeriod(value: string): Period | null {
   if (normalized === "bulanan" || normalized === "monthly" || normalized === "bulan")
     return "monthly";
   return null;
+}
+
+export async function sendDiscordMessage(
+  token: string,
+  channelId: string,
+  content: string,
+): Promise<void> {
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content: content.slice(0, 2000), allowed_mentions: { parse: [] } }),
+  });
+  if (!response.ok) throw new Error("Discord sendMessage failed");
+}
+
+async function actionExpense(
+  interaction: DiscordInteraction,
+  env: IntegrationEnv,
+  integration: { integrationId: string },
+  expenseId: string,
+): Promise<
+  | { ok: true; expense: NonNullable<Awaited<ReturnType<typeof getExpenseForAction>>> }
+  | { ok: false; message: string }
+> {
+  const user = interaction.member?.user ?? interaction.user;
+  if (!user || user.bot) return { ok: false, message: "Perintah ini hanya untuk pengguna." };
+  if (!interaction.channel_id)
+    return { ok: false, message: "Channel Discord tidak dikenali." };
+  const linked = await findProfileForChannel(
+    env.DB,
+    integration.integrationId,
+    interaction.channel_id,
+  );
+  const expense = await getExpenseForAction(env.DB, expenseId);
+  if (!linked || !expense || expense.channel_id !== linked.channelId)
+    return { ok: false, message: "Transaksi ini tidak ditemukan di channel ini." };
+  if (expense.reporter_id !== user.id)
+    return { ok: false, message: "Hanya pencatat transaksi ini yang dapat mengubahnya." };
+  if (Date.now() - expense.created_at > actionWindow)
+    return { ok: false, message: "Batas waktu ubah sudah lewat. Gunakan situs web." };
+  return { ok: true, expense };
+}
+
+async function handleDiscordComponent(
+  interaction: DiscordInteraction,
+  env: IntegrationEnv,
+  integration: { integrationId: string },
+): Promise<Response> {
+  const customId = interaction.data?.custom_id ?? "";
+  const match = customId.match(/^(undo|edit)_([0-9a-f-]{36})$/i);
+  if (!match) return reply("Tombol tidak dikenal.", true);
+  const [, action, expenseId] = match;
+  const result = await actionExpense(interaction, env, integration, expenseId);
+  if (!result.ok) return reply(result.message, true);
+  if (action === "undo") {
+    await deleteExpense(env.DB, result.expense.id);
+    return updateMessage(`Pengeluaran dibatalkan: ${rupiah(result.expense.amount)} · ${result.expense.item}.`);
+  }
+  return Response.json({
+    type: 9,
+    data: {
+      custom_id: `editmodal_${result.expense.id}`,
+      title: "Edit pengeluaran",
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 4,
+              custom_id: "data",
+              label: "Jumlah, item, kategori",
+              style: 2,
+              value: `${result.expense.amount}, ${result.expense.item}, ${result.expense.category}`,
+              required: true,
+              max_length: 350,
+            },
+          ],
+        },
+      ],
+    },
+  });
+}
+
+async function handleDiscordModal(
+  interaction: DiscordInteraction,
+  env: IntegrationEnv,
+  integration: { integrationId: string },
+): Promise<Response> {
+  const customId = interaction.data?.custom_id ?? "";
+  const match = customId.match(/^editmodal_([0-9a-f-]{36})$/i);
+  if (!match) return reply("Form edit tidak dikenal.", true);
+  const expenseId = match[1];
+  const result = await actionExpense(interaction, env, integration, expenseId);
+  if (!result.ok) return reply(result.message, true);
+  const value = componentValue(interaction.data?.components, "data");
+  const parts = value.split(",").map((part) => part.trim());
+  const amount = parts.length === 3 ? parseAmount(parts[0]) : null;
+  if (!amount || !parts[1] || parts[1].length > 200 || !parts[2] || parts[2].length > 100)
+    return reply("Format edit: jumlah, item, kategori.", true);
+  const updated = await updateExpense(env.DB, {
+    expenseId: result.expense.id,
+    profileId: result.expense.profile_id,
+    amount,
+    item: parts[1],
+    categoryName: parts[2],
+  });
+  if (!updated.ok) {
+    if (updated.error === "category") {
+      const names = updated.categories.join(", ") || "belum ada";
+      return reply(`Kategori "${parts[2]}" tidak ditemukan. Kategori tersedia: ${names}.`, true);
+    }
+    if (updated.error === "limit")
+      return reply("Total profil melebihi batas jumlah yang didukung.", true);
+    return reply("Transaksi ini sudah tidak ada.", true);
+  }
+  return reply(`Diperbarui: ${rupiah(amount)} · ${updated.categoryName} · ${parts[1]}.`, true);
 }
 
 export async function handleDiscordInteraction(
@@ -120,6 +303,8 @@ export async function handleDiscordInteraction(
     return new Response("Invalid JSON", { status: 400 });
   }
   if (interaction.type === 1) return Response.json({ type: 1 });
+  if (interaction.type === 3) return handleDiscordComponent(interaction, env, integration);
+  if (interaction.type === 5) return handleDiscordModal(interaction, env, integration);
   if (interaction.type !== 2 || !interaction.data?.name) return new Response("OK");
 
   const name = interaction.data.name;
@@ -195,5 +380,7 @@ export async function handleDiscordInteraction(
   }).format(now);
   return reply(
     `Tercatat: ${rupiah(amount)} · ${result.categoryName} · ${parts[1]}, ${date}.\n\nTotal ${month}: ${rupiah(result.monthTotal)} dari ${result.monthCount} transaksi.`,
+    false,
+    actionRow(result.expenseId),
   );
 }

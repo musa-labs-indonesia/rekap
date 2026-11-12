@@ -144,6 +144,8 @@ const telegramCommands = [
   { command: "forgot_password", description: "Pulihkan kata sandi" },
 ];
 
+const telegramAllowedUpdates = ["message", "callback_query"];
+
 export async function connectTelegram(
   db: D1Database,
   env: IntegrationEnv,
@@ -181,7 +183,7 @@ export async function connectTelegram(
     await telegramApi(trimmed, "setWebhook", {
       url: webhookUrl,
       secret_token: webhookSecret,
-      allowed_updates: ["message"],
+      allowed_updates: telegramAllowedUpdates,
       drop_pending_updates: false,
     });
     await telegramApi(trimmed, "setMyCommands", { commands: telegramCommands });
@@ -215,7 +217,7 @@ export async function activateTelegramEnv(
   await telegramApi(env.TELEGRAM_BOT_TOKEN, "setWebhook", {
     url: webhookUrl,
     secret_token: env.TELEGRAM_WEBHOOK_SECRET,
-    allowed_updates: ["message"],
+    allowed_updates: telegramAllowedUpdates,
     drop_pending_updates: false,
   });
   await db
@@ -262,15 +264,16 @@ export async function disconnectTelegram(db: D1Database, env: IntegrationEnv): P
   ]);
 }
 
-export async function telegramWebhook(
+export async function telegramBotConfig(
   db: D1Database,
   env: IntegrationEnv,
-  providedSecret: string,
 ): Promise<{
   token: string;
   botUsername: string | null;
   trustedTelegramUserId: string | null;
   integrationId: string;
+  envSecret: string | null;
+  webhookSecretHash: string | null;
 } | null> {
   const integration = await getIntegration(db, "telegram");
   if (!integration || integration.status !== "connected") return null;
@@ -282,7 +285,6 @@ export async function telegramWebhook(
       !/^[A-Za-z0-9_-]{32,256}$/.test(env.TELEGRAM_WEBHOOK_SECRET)
     )
       return null;
-    if (!secureEqual(providedSecret, env.TELEGRAM_WEBHOOK_SECRET)) return null;
     return {
       token: env.TELEGRAM_BOT_TOKEN,
       botUsername:
@@ -294,6 +296,8 @@ export async function telegramWebhook(
           ? publicConfig.trustedTelegramUserId
           : env.TRUSTED_TELEGRAM_USER_ID ?? null,
       integrationId: integration.id,
+      envSecret: env.TELEGRAM_WEBHOOK_SECRET,
+      webhookSecretHash: null,
     };
   }
   const config = await decryptConfig<{ token?: string }>(
@@ -302,7 +306,6 @@ export async function telegramWebhook(
     integration.config,
   );
   if (!config?.token || !integration.webhook_secret_hash) return null;
-  if (!secureEqual(await sha256Hex(providedSecret), integration.webhook_secret_hash)) return null;
   return {
     token: config.token,
     botUsername: typeof publicConfig.botUsername === "string" ? publicConfig.botUsername : null,
@@ -311,6 +314,36 @@ export async function telegramWebhook(
         ? publicConfig.trustedTelegramUserId
         : null,
     integrationId: integration.id,
+    envSecret: null,
+    webhookSecretHash: integration.webhook_secret_hash,
+  };
+}
+
+export async function telegramWebhook(
+  db: D1Database,
+  env: IntegrationEnv,
+  providedSecret: string,
+): Promise<{
+  token: string;
+  botUsername: string | null;
+  trustedTelegramUserId: string | null;
+  integrationId: string;
+} | null> {
+  const config = await telegramBotConfig(db, env);
+  if (!config) return null;
+  if (config.envSecret) {
+    if (!secureEqual(providedSecret, config.envSecret)) return null;
+  } else if (
+    !config.webhookSecretHash ||
+    !secureEqual(await sha256Hex(providedSecret), config.webhookSecretHash)
+  ) {
+    return null;
+  }
+  return {
+    token: config.token,
+    botUsername: config.botUsername,
+    trustedTelegramUserId: config.trustedTelegramUserId,
+    integrationId: config.integrationId,
   };
 }
 

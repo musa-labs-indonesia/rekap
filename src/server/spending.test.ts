@@ -33,6 +33,7 @@ class TestD1 {
     this.db.exec(readFileSync(new URL("../../migrations/0001_spending.sql", import.meta.url), "utf8"));
     this.db.exec(readFileSync(new URL("../../migrations/0003_reporter.sql", import.meta.url), "utf8"));
     this.db.exec(readFileSync(new URL("../../migrations/0004_channels.sql", import.meta.url), "utf8"));
+    this.db.exec(readFileSync(new URL("../../migrations/0005_channel_actions.sql", import.meta.url), "utf8"));
   }
   prepare(sql: string) { return new Statement(this.db, sql); }
   async batch(statements: Statement[]) {

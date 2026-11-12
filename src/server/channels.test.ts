@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { D1Database } from "@cloudflare/workers-types/index";
 import { handleDiscordInteraction } from "./discord";
 import { encryptConfig } from "./channel-crypto";
+import { handleScheduled } from "./recap";
 import {
   connectTelegram,
   createLinkCode,
@@ -79,6 +80,7 @@ beforeEach(() => {
   sqlite.exec(readFileSync("migrations/0001_spending.sql", "utf8"));
   sqlite.exec(readFileSync("migrations/0003_reporter.sql", "utf8"));
   sqlite.exec(readFileSync("migrations/0004_channels.sql", "utf8"));
+  sqlite.exec(readFileSync("migrations/0005_channel_actions.sql", "utf8"));
   sqlite.exec(
     "INSERT INTO profiles (id, name, chat_id, archived, created_at) VALUES ('p1', 'Lama', '-100', 0, 1), ('p2', 'Baru', 'unlinked:p2', 0, 1)",
   );
@@ -139,6 +141,7 @@ describe("Channels", () => {
       "INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, telegram_chat_id, telegram_message_id, created_at) VALUES ('e', 'old', 'c', 1000, 'kopi', 1, '-500', 10, 1)",
     );
     db.exec(readFileSync("migrations/0004_channels.sql", "utf8"));
+    db.exec(readFileSync("migrations/0005_channel_actions.sql", "utf8"));
     expect(db.prepare("SELECT profile_id, external_id FROM profile_channels").get()).toMatchObject({
       profile_id: "old",
       external_id: "-500",
@@ -163,7 +166,9 @@ describe("Channels", () => {
       if (method === "getWebhookInfo")
         return Response.json({ ok: true, result: { url: "" } });
       if (method === "setWebhook") {
-        webhookSecretSent = JSON.parse(String(init?.body)).secret_token;
+        const body = JSON.parse(String(init?.body));
+        webhookSecretSent = body.secret_token;
+        expect(body.allowed_updates).toEqual(["message", "callback_query"]);
         return Response.json({ ok: true, result: true });
       }
       if (method === "setMyCommands" || method === "deleteWebhook")
@@ -345,6 +350,110 @@ describe("Discord interactions", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS n FROM expenses").get()).toMatchObject({ n: 1 });
   });
 
+  it("edits a slash command with the inline button and modal", async () => {
+    await configureDiscord();
+    const create = await handleDiscordInteraction(
+      signedRequest({
+        id: "interaction-edit",
+        type: 2,
+        channel_id: "d-channel",
+        data: { name: "catat", options: [{ name: "data", value: "30.000, nasi, makan" }] },
+        member: { user: { id: "u1", username: "sari", global_name: "Sari" } },
+      }),
+      env,
+    );
+    const created = await create.json() as {
+      data: { components: Array<{ components: Array<{ custom_id: string }> }> };
+    };
+    const expenseId = sqlite.prepare("SELECT id FROM expenses").get()?.id as string;
+    expect(created.data.components[0].components.map((item) => item.custom_id)).toEqual([
+      `undo_${expenseId}`,
+      `edit_${expenseId}`,
+    ]);
+
+    const edit = await handleDiscordInteraction(
+      signedRequest({
+        id: "component-edit",
+        type: 3,
+        channel_id: "d-channel",
+        data: { custom_id: `edit_${expenseId}`, component_type: 2 },
+        member: { user: { id: "u1", username: "sari" } },
+      }),
+      env,
+    );
+    const modal = await edit.json() as { type: number; data: { custom_id: string } };
+    expect(modal.type).toBe(9);
+    expect(modal.data.custom_id).toBe(`editmodal_${expenseId}`);
+
+    const updated = await handleDiscordInteraction(
+      signedRequest({
+        id: "modal-edit",
+        type: 5,
+        channel_id: "d-channel",
+        data: {
+          custom_id: `editmodal_${expenseId}`,
+          components: [
+            {
+              type: 1,
+              components: [{ type: 4, custom_id: "data", value: "25.000, nasi goreng, makan" }],
+            },
+          ],
+        },
+        member: { user: { id: "u1", username: "sari" } },
+      }),
+      env,
+    );
+    expect((await updated.json() as { data: { content: string } }).data.content).toContain(
+      "Diperbarui: Rp25.000",
+    );
+    expect(sqlite.prepare("SELECT amount, item FROM expenses").get()).toMatchObject({
+      amount: 25000,
+      item: "nasi goreng",
+    });
+  });
+
+  it("undoes a slash command from the inline button and rejects another reporter", async () => {
+    await configureDiscord();
+    await handleDiscordInteraction(
+      signedRequest({
+        id: "interaction-undo",
+        type: 2,
+        channel_id: "d-channel",
+        data: { name: "catat", options: [{ name: "data", value: "40.000, bensin, makan" }] },
+        member: { user: { id: "u1", username: "sari" } },
+      }),
+      env,
+    );
+    const expenseId = sqlite.prepare("SELECT id FROM expenses").get()?.id as string;
+    const denied = await handleDiscordInteraction(
+      signedRequest({
+        id: "component-denied",
+        type: 3,
+        channel_id: "d-channel",
+        data: { custom_id: `undo_${expenseId}`, component_type: 2 },
+        member: { user: { id: "u2", username: "budi" } },
+      }),
+      env,
+    );
+    expect((await denied.json() as { data: { content: string } }).data.content).toContain(
+      "Hanya pencatat",
+    );
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM expenses").get()?.n).toBe(1);
+    const undo = await handleDiscordInteraction(
+      signedRequest({
+        id: "component-undo",
+        type: 3,
+        channel_id: "d-channel",
+        data: { custom_id: `undo_${expenseId}`, component_type: 2 },
+        member: { user: { id: "u1", username: "sari" } },
+      }),
+      env,
+    );
+    expect((await undo.json() as { type: number }).type).toBe(7);
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM expenses").get()?.n).toBe(0);
+  });
+
+
   it("reports all channels on the same profile", async () => {
     await configureDiscord();
     sqlite.exec(
@@ -361,5 +470,68 @@ describe("Discord interactions", () => {
     expect((await response.json() as { data: { content: string } }).data.content).toContain(
       "Total: Rp12.000 (2 transaksi)",
     );
+  });
+});
+
+describe("Scheduled recaps", () => {
+  async function seedChannels() {
+    const config = await encryptConfig(secret, "discord", { token: "discord-token" });
+    sqlite
+      .prepare(
+        "INSERT INTO integrations (id, type, name, source, config, public_config, status, created_at, updated_at) VALUES ('discord', 'discord', 'Discord', 'db', ?, ?, 'connected', 1, 1)",
+      )
+      .run(config, JSON.stringify({ applicationId: "app", publicKey: "00", botName: "Bot" }));
+    sqlite.exec(
+      "INSERT INTO profile_channels (id, profile_id, integration_id, external_id, external_name, active, created_at) VALUES ('pc-p1', 'p1', 'telegram', '-100', 'Telegram', 1, 1), ('pc-p2-discord', 'p2', 'discord', 'd-chan', 'Server / #umum', 1, 1)",
+    );
+    sqlite.exec(
+      "INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, channel_id, external_message_id, source, created_at) VALUES ('w1', 'p1', 'c1', 20000, 'nasi', 1771927200000, 'pc-p1', 'w1', 'telegram', 1), ('w2', 'p2', 'c2', 30000, 'kopi', 1771927200000, 'pc-p2-discord', 'w2', 'discord', 1)",
+    );
+  }
+
+  it("sends previous week to every active channel and skips unknown cron", async () => {
+    await seedChannels();
+    const sent: Array<{ type: string; id: string; text: string }> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body));
+      if (url.includes("api.telegram.org")) {
+        sent.push({ type: "telegram", id: body.chat_id, text: body.text });
+        return Response.json({ ok: true });
+      }
+      if (url.includes("discord.com")) {
+        sent.push({ type: "discord", id: url.split("/channels/")[1].split("/")[0], text: body.content });
+        return Response.json({});
+      }
+      throw new Error(`Unexpected request ${url}`);
+    });
+    await handleScheduled({ cron: "0 1 * * 1" }, env);
+    expect(sent).toHaveLength(2);
+    expect(sent).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "telegram", id: "-100" }),
+        expect.objectContaining({ type: "discord", id: "d-chan" }),
+      ]),
+    );
+    expect(sent.every((item) => item.text.includes("Laporan minggu lalu"))).toBe(true);
+    expect(sent.some((item) => item.text.includes("Rp20.000"))).toBe(true);
+    expect(sent.some((item) => item.text.includes("Rp30.000"))).toBe(true);
+
+    const before = sent.length;
+    await handleScheduled({ cron: "0 1 * * 2" }, env);
+    expect(sent).toHaveLength(before);
+  });
+
+  it("sends previous month for the monthly schedule", async () => {
+    await seedChannels();
+    const sent: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body));
+      sent.push(body.text ?? body.content);
+      return Response.json({ ok: true });
+    });
+    await handleScheduled({ cron: "0 1 1 * *" }, env);
+    expect(sent).toHaveLength(2);
+    expect(sent.every((text) => text.includes("Laporan bulan lalu"))).toBe(true);
   });
 });

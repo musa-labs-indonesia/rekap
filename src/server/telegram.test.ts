@@ -54,6 +54,7 @@ beforeEach(() => {
   sqlite.exec(readFileSync('migrations/0001_spending.sql', 'utf8'))
   sqlite.exec(readFileSync('migrations/0003_reporter.sql', 'utf8'))
   sqlite.exec(readFileSync('migrations/0004_channels.sql', 'utf8'))
+  sqlite.exec(readFileSync('migrations/0005_channel_actions.sql', 'utf8'))
   sqlite.exec("INSERT INTO profiles VALUES ('p', 'Rumah', '-100', 0, 1), ('archived', 'Arsip', '-200', 1, 1), ('other', 'Lain', '-300', 0, 1)")
   sqlite.exec("INSERT INTO categories VALUES ('c', 'p', 'Makan', 'makan', 0), ('arch-c', 'p', 'Lama', 'lama', 1), ('other-c', 'other', 'Lain', 'lain', 0)")
   env = { DB: database(sqlite), TELEGRAM_BOT_TOKEN: 'token', TELEGRAM_BOT_USERNAME: 'bot', TELEGRAM_WEBHOOK_SECRET: webhookSecret, TRUSTED_TELEGRAM_USER_ID: '42', APP_URL: 'https://app.example', BETTER_AUTH_SECRET: 'test-secret-0123456789abcdef0123456789' }
@@ -206,5 +207,67 @@ describe('Telegram webhook', () => {
     expect(replies.at(-1)?.text).toBe('Buka tautan pemulihan')
     await handleTelegramWebhook(request('/forgot_password', { chat: 42, type: 'private', from: 42 }), env)
     expect(replies.at(-1)?.text).toContain('belum tersedia')
+  })
+})
+
+function callbackRequest(data: string, options: { from?: number; chat?: number; id?: number } = {}) {
+  return new Request('https://app.example/telegram', {
+    method: 'POST',
+    headers: { 'X-Telegram-Bot-Api-Secret-Token': webhookSecret },
+    body: JSON.stringify({ callback_query: {
+      id: 'callback-1',
+      from: { id: options.from ?? 99 },
+      data,
+      message: { message_id: options.id ?? 5, date: 1, chat: { id: options.chat ?? -100, type: 'group' } },
+    } }),
+  })
+}
+
+function seedActionExpense(id: string) {
+  sqlite.prepare("INSERT INTO expenses (id, profile_id, category_id, amount, item, occurred_at, telegram_chat_id, telegram_message_id, reporter_id, created_at) VALUES (?, 'p', 'c', 20000, 'nasi', ?, '-100', 5, '99', ?)")
+    .run(id, Date.now(), Date.now())
+}
+
+describe('Telegram action buttons', () => {
+  it('undoes a reporter transaction from an inline button', async () => {
+    seedActionExpense('11111111-1111-4111-8111-111111111111')
+    const calls: string[] = []
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      calls.push(String(url).split('/').pop() ?? '')
+      return Response.json({ ok: true })
+    })
+    await handleTelegramWebhook(callbackRequest('undo:11111111-1111-4111-8111-111111111111'), env)
+    expect(calls).toContain('answerCallbackQuery')
+    expect(calls).toContain('editMessageReplyMarkup')
+    expect(calls).toContain('sendMessage')
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM expenses').get()?.n).toBe(0)
+  })
+
+  it('edits a reporter transaction after the inline edit prompt', async () => {
+    seedActionExpense('22222222-2222-4222-8222-222222222222')
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (String(url).endsWith('/sendMessage')) replies.push(JSON.parse(String(init?.body)))
+      return Response.json({ ok: true })
+    })
+    await handleTelegramWebhook(callbackRequest('edit:22222222-2222-4222-8222-222222222222'), env)
+    await handleTelegramWebhook(request('25.000, nasi goreng, makan', { from: 99, id: 6 }), env)
+    expect(sqlite.prepare('SELECT amount, item, category_id FROM expenses').get()).toMatchObject({
+      amount: 25000,
+      item: 'nasi goreng',
+      category_id: 'c',
+    })
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM channel_pending_edits').get()?.n).toBe(0)
+    expect(replies.at(-1)?.text).toContain('Diperbarui')
+  })
+
+  it('rejects an action from a different reporter', async () => {
+    seedActionExpense('33333333-3333-4333-8333-333333333333')
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (String(url).endsWith('/sendMessage')) replies.push(JSON.parse(String(init?.body)))
+      return Response.json({ ok: true })
+    })
+    await handleTelegramWebhook(callbackRequest('undo:33333333-3333-4333-8333-333333333333', { from: 77 }), env)
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM expenses').get()?.n).toBe(1)
+    expect(replies.at(-1)?.text).toContain('Hanya pencatat')
   })
 })

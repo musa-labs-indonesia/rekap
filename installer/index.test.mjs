@@ -9,6 +9,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
     .replace(/("path": "0002_auth\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
     .replace(/("path": "0003_reporter\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
     .replace(/("path": "0004_channels\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
+    .replace(/("path": "0005_channel_actions\.sql",[\s\S]*?"autoUpdate": )false/, '$1true')
   assert.notEqual(script, source)
   let failRevocation = false
   let revocations = 0
@@ -119,6 +120,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           const body = await request.json()
           assert.equal(body.drop_pending_updates, false)
           assert.equal(body.secret_token.length, 64)
+          assert.deepEqual(body.allowed_updates, ['message', 'callback_query'])
           webhookUrl = body.url
           return Response.json({ ok: true, result: true })
         }
@@ -149,8 +151,9 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
             migrationDb = await migrationRuntime.getD1Database('DB')
             await migrationDb.batch([
               migrationDb.prepare('CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT UNIQUE)'),
-              migrationDb.prepare("INSERT INTO d1_migrations (name) VALUES ('0001_spending.sql'), ('0002_auth.sql'), ('0003_reporter.sql')"),
+              migrationDb.prepare("INSERT INTO d1_migrations (name) VALUES ('0001_spending.sql'), ('0002_auth.sql'), ('0003_reporter.sql'), ('0004_channels.sql')"),
               migrationDb.prepare('CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT, chat_id TEXT, archived INTEGER, created_at INTEGER)'),
+              migrationDb.prepare('CREATE TABLE integrations (id TEXT PRIMARY KEY, type TEXT)'),
               migrationDb.prepare('CREATE TABLE expenses (id TEXT PRIMARY KEY, profile_id TEXT, telegram_chat_id TEXT, telegram_message_id INTEGER, reporter_id TEXT)'),
             ])
             return Response.json({ success: true, result: {} })
@@ -176,7 +179,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
           if (suffix === '/settings') return workerName === name ? Response.json({ success: true, result: { bindings: workerBindings } }) : Response.json({ success: false }, { status: 404 })
           if (suffix === '/secrets') return Response.json({ success: true, result: workerBindings.filter(binding => binding.type === 'secret_text').map(binding => ({ name: binding.name })) })
           if (suffix === '/secrets/OWNER_PASSWORD' && request.method === 'DELETE') {
-            assert.equal(applied.size, 4)
+            assert.equal(applied.size, 5)
             workerBindings = workerBindings.filter(binding => binding.name !== 'OWNER_PASSWORD')
             secretDeletes++
             if (failSecretDeleteReply) {
@@ -207,6 +210,11 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
             workerName = name
             workerBindings = metadata.bindings
             return Response.json({ success: true, result: {} })
+          }
+          if (suffix === '/schedules' && request.method === 'PUT') {
+            const body = await request.json()
+            assert.deepEqual(body, [{ cron: '0 1 * * 1' }, { cron: '0 1 1 * *' }])
+            return Response.json({ success: true, result: { schedules: body } })
           }
           if (suffix === '/subdomain') return Response.json({ success: true, result: {} })
         }
@@ -361,7 +369,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
       installation = (await result.json()).installation
       assert.equal(installation.phase, phase)
     }
-    assert.equal(applied.size, 4)
+    assert.equal(applied.size, 5)
     assert.equal(secretDeletes, 1)
     assert.equal(workerBindings.some(binding => binding.name === 'OWNER_PASSWORD'), false)
     assert.equal(workerBindings.find(binding => binding.name === 'DB').database_id, databaseId)
@@ -392,12 +400,13 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
     applied.add('0001_spending.sql')
     applied.add('0002_auth.sql')
     applied.add('0003_reporter.sql')
+    applied.add('0004_channels.sql')
     assert.equal((await (await install('update')).json()).installation.phase, 'update_prepare')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_domain')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_apply')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_migration_cleanup')
     assert.equal(migrationAttempts, 1)
-    assert.deepEqual(await migrationDb.prepare("SELECT name FROM d1_migrations WHERE name = '0004_channels.sql'").first(), { name: '0004_channels.sql' })
+    assert.deepEqual(await migrationDb.prepare("SELECT name FROM d1_migrations WHERE name = '0005_channel_actions.sql'").first(), { name: '0005_channel_actions.sql' })
     assert.equal((await (await install('step')).json()).installation.phase, 'update_prepare')
     assert.equal((await (await install('step')).json()).installation.phase, 'update_deploy')
     assert.equal(versionUploads, 1)
@@ -413,7 +422,7 @@ test('OAuth sessions bind authorization, list accounts, and revoke tokens', asyn
 
     deployedVersion = 'old-version'
     await storage.exec("UPDATE job SET value = json_set(value, '$.artifactId', 'older-artifact') WHERE id = 1")
-    applied.delete('0004_channels.sql')
+    applied.delete('0005_channel_actions.sql')
     failMigrationUpload = true
     assert.equal((await (await install('update')).json()).installation.phase, 'update_prepare')
     assert.equal((await install('step')).status, 502)

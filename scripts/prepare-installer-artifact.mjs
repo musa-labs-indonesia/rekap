@@ -67,6 +67,7 @@ const manifest = {
   mainModule: configuration.manifest.mainModule,
   compatibilityDate: configuration.compatibilityDate,
   compatibilityFlags: configuration.compatibilityFlags ?? [],
+  triggers: (configuration.triggers ?? []).filter(trigger => trigger.type === 'scheduled').map(trigger => trigger.schedule),
   bundle: await copyFiles(join(output, 'bundle'), 'bundle', bundle),
   assets: await copyFiles(join(output, 'assets'), 'assets', assets),
   migrations: await copyFiles(resolve('migrations'), 'migrations', migrations),

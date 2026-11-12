@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { activeVersion, applyMigrations, artifactId, createDatabase, deleteWorker, deployUpdate, findDatabase, findVersionByTag, getSubdomain, migrationByPath, migrationWorkerState, setSubdomain, updatePreflight, uploadMigrationWorker, uploadUpdate, uploadWorker, verifyInstallation, workerDatabase, workerSubdomainEnabled } from './deploy'
+import { activeVersion, applyMigrations, artifactId, createDatabase, deleteWorker, deployUpdate, findDatabase, findVersionByTag, getSubdomain, migrationByPath, migrationWorkerState, setSchedules, setSubdomain, updatePreflight, uploadMigrationWorker, uploadUpdate, uploadWorker, verifyInstallation, workerDatabase, workerSubdomainEnabled } from './deploy'
 
 interface JobEnv { SESSION_KEY: string }
 type Input = { botToken: string; username: string; password: string }
@@ -537,6 +537,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
           await updatePreflight(account, token, job.name, job.database, job.newVersion)
           const health = await fetch(`https://${job.name}.${job.subdomain}.workers.dev/api/auth/get-session`, { redirect: 'manual' })
           if (!health.ok) throw new Error('App is not ready yet')
+          await setSchedules(account, token, job.name)
           job.artifactId = job.targetArtifactId
           job.targetArtifactId = undefined
           job.updateTag = undefined
@@ -600,6 +601,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
         job.phase = 'domain'
         this.write(job)
       } else if (job.phase === 'domain') {
+        await setSchedules(account, token, job.name)
         await setSubdomain(account, token, job.name, true)
         job.phase = 'health'
         this.write(job)
@@ -613,7 +615,7 @@ export class InstallerJob extends DurableObject<JobEnv> {
         const url = `https://${job.name}.${job.subdomain}.workers.dev/api/telegram`
         const current = await telegram<{ url?: string }>(credentials.botToken, 'getWebhookInfo')
         if (typeof current.url !== 'string' || (current.url && current.url !== url)) throw new Error('Bot webhook changed during installation')
-        await telegram(credentials.botToken, 'setWebhook', { url, secret_token: credentials.webhookSecret, allowed_updates: ['message'], drop_pending_updates: false })
+        await telegram(credentials.botToken, 'setWebhook', { url, secret_token: credentials.webhookSecret, allowed_updates: ['message', 'callback_query'], drop_pending_updates: false })
         job.phase = 'commands'
         this.write(job)
       } else if (job.phase === 'commands') {

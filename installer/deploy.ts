@@ -1,6 +1,6 @@
 type FileEntry = { path: string; size: number; sha256: string; content: string; uploadHash?: string }
 type Migration = FileEntry & { statements: string[]; autoUpdate: boolean }
-type Artifact = { id: string; mainModule: string; compatibilityDate: string; compatibilityFlags: string[]; bundle: FileEntry[]; assets: FileEntry[]; migrations: Migration[] }
+type Artifact = { id: string; mainModule: string; compatibilityDate: string; compatibilityFlags: string[]; triggers: string[]; bundle: FileEntry[]; assets: FileEntry[]; migrations: Migration[] }
 
 declare const __REKAP_ARTIFACT__: Artifact
 
@@ -221,6 +221,11 @@ export async function uploadUpdate(account: string, token: string, name: string,
 
 export async function deployUpdate(account: string, token: string, name: string, version: string): Promise<void> {
   await request(account, token, `/workers/scripts/${name}/deployments`, 'POST', { strategy: 'percentage', versions: [{ version_id: version, percentage: 100 }] })
+}
+
+export async function setSchedules(account: string, token: string, name: string): Promise<void> {
+  if (!artifact.triggers.length) return
+  await request(account, token, `/workers/scripts/${name}/schedules`, 'PUT', artifact.triggers.map(cron => ({ cron })))
 }
 
 export async function setSubdomain(account: string, token: string, name: string, enabled: boolean): Promise<boolean | undefined> {

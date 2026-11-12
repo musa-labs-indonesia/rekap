@@ -1,4 +1,5 @@
 {
   "0003_reporter.sql": "ccad08664705cfcb7aa0f54dc8075a8ccedbea5323718f97fa654ab2194938c0",
-  "0004_channels.sql": "fa85dbb7bb9ff10b35125c5a4199deec676084ea6d3dbdafabd8e5d49d4df9c6"
+  "0004_channels.sql": "fa85dbb7bb9ff10b35125c5a4199deec676084ea6d3dbdafabd8e5d49d4df9c6",
+  "0005_channel_actions.sql": "c92644e41d320e19878a7334d787626e1f802f7d85d9de84d3f91ee6626538aa"
 }

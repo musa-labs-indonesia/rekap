@@ -48,6 +48,11 @@ const sections = [
     icon: Send,
   },
   {
+    id: "otomatis",
+    label: "Rekap otomatis",
+    icon: Settings,
+  },
+  {
     id: "website",
     label: "Situs web",
     icon: Monitor,
@@ -98,6 +103,10 @@ const commands = [
   {
     command: "/connect KODE",
     description: "Menghubungkan chat ini ke profil yang dipilih di situs web.",
+  },
+  {
+    command: "/batal",
+    description: "Membatalkan proses edit transaksi yang sedang berjalan.",
   },
   {
     command: "/addcategory nama kategori",
@@ -610,6 +619,39 @@ function Docs() {
                 Rekap belum membaca pesan Discord biasa. Gunakan{" "}
                 <InlineCode>/catat</InlineCode>; pesan seperti{" "}
                 <InlineCode>catat, 30.000, nasi, makan</InlineCode> diabaikan.
+              </Callout>
+            </Section>
+
+            <Section id="otomatis" title="Rekap otomatis">
+              <p>
+                Rekap mengirim laporan otomatis ke setiap kanal aktif. Tidak
+                perlu meminta laporan manual.
+              </p>
+              <ul className="space-y-3">
+                <ListItem>
+                  <strong>Mingguan:</strong> setiap Senin pukul 08.00 WIB,
+                  berisi laporan minggu sebelumnya.
+                </ListItem>
+                <ListItem>
+                  <strong>Bulanan:</strong> setiap tanggal 1 pukul 08.00 WIB,
+                  berisi laporan bulan sebelumnya.
+                </ListItem>
+                <ListItem>
+                  Laporan hanya dikirim jika profil memiliki transaksi pada
+                  periode itu. Profil yang diarsipkan tidak dikirimi laporan.
+                </ListItem>
+                <ListItem>
+                  Laporan dikirim ke semua kanal Telegram dan Discord yang masih
+                  terhubung dan aktif.
+                </ListItem>
+              </ul>
+              <Callout title="Tombol transaksi">
+                Balasan <InlineCode>catat</InlineCode> memiliki tombol{" "}
+                <strong>Batalkan</strong> dan <strong>Edit</strong>. Hanya
+                pencatat yang dapat memakainya, dan tombol berlaku 15 menit.
+                Untuk Telegram, kirim data baru dengan format{" "}
+                <InlineCode>jumlah, item, kategori</InlineCode> atau kirim{" "}
+                <InlineCode>/batal</InlineCode>. Discord membuka form edit.
               </Callout>
             </Section>
 
