@@ -156,6 +156,17 @@ export function IntegrationsPage() {
             <CardFooter className="flex-wrap justify-end gap-2 bg-transparent">
               {telegram?.status === "connected" ? (
                 <>
+                  {telegram?.source === "env" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={mutation.isPending}
+                      onClick={() => mutation.mutate({ action: "activateTelegram" })}
+                    >
+                      <Cable />
+                      Perbarui webhook
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     size="sm"
